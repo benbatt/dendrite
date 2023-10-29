@@ -1,6 +1,7 @@
 #include "drawingarea.h"
 
 #include <gtkmm/eventcontrollermotion.h>
+#include <gtkmm/gestureclick.h>
 #include <gtkmm/gesturedrag.h>
 #include <iostream>
 
@@ -8,6 +9,10 @@ DrawingArea::DrawingArea()
   : mHoverIndex(-1)
 {
   set_draw_func(sigc::mem_fun(*this, &DrawingArea::onDraw));
+
+  auto clickController = Gtk::GestureClick::create();
+  clickController->signal_pressed().connect(sigc::mem_fun(*this, &DrawingArea::onPressed));
+  add_controller(clickController);
 
   auto motionController = Gtk::EventControllerMotion::create();
   motionController->signal_motion().connect(sigc::mem_fun(*this, &DrawingArea::onPointerMotion));
@@ -61,6 +66,15 @@ void DrawingArea::onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width
     }
 
     context->fill();
+  }
+}
+
+void DrawingArea::onPressed(int count, double x, double y)
+{
+  if (count == 2)
+  {
+    mHandles.push_back({ x, y });
+    queue_draw();
   }
 }
 
