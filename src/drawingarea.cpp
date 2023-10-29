@@ -20,12 +20,26 @@ DrawingArea::DrawingArea()
   add_controller(dragController);
 
   mHandles.push_back({ 30, 20 });
+  mHandles.push_back({ 60, 30 });
 }
 
 const int HandleSize = 10;
 
 void DrawingArea::onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width, int height)
 {
+  if (mHandles.size() > 1)
+  {
+    context->move_to(mHandles[0].x, mHandles[0].y);
+
+    for (int i = 1; i < mHandles.size(); ++i)
+    {
+      context->line_to(mHandles[i].x, mHandles[i].y);
+    }
+
+    context->set_source_rgb(0, 0, 0);
+    context->stroke();
+  }
+
   float halfSize = HandleSize / 2;
 
   for (int i = 0; i < mHandles.size(); ++i)
