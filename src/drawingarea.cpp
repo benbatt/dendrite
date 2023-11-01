@@ -73,6 +73,7 @@ void drawHandle(const Cairo::RefPtr<Cairo::Context>& context, double size, const
   context->rectangle(position.x - halfSize, position.y - halfSize, size, size);
 
   context->set_source_rgb(0, 0, 0);
+  context->set_line_width(2);
   context->stroke_preserve();
 
   if (hover) {
@@ -98,8 +99,20 @@ void DrawingArea::onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width
     }
 
     context->set_source_rgb(0, 0, 0);
+    context->set_line_width(2);
     context->stroke();
   }
+
+  for (const Node& n : mNodes) {
+    context->move_to(n.position.x, n.position.y);
+    context->rel_line_to(n.controlA.x, n.controlA.y);
+    context->move_to(n.position.x, n.position.y);
+    context->rel_line_to(n.controlB.x, n.controlB.y);
+  }
+
+  context->set_source_rgb(0, 0, 0);
+  context->set_line_width(0.5);
+  context->stroke();
 
   for (int i = 0; i < mHandles.size(); ++i) {
     drawHandle(context, HandleSize, handlePosition(mHandles[i]), i == mHoverIndex);
