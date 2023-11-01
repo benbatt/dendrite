@@ -4,6 +4,11 @@
 
 struct Vector
 {
+  double length() const;
+  Vector normalised() const;
+  Vector operator-() const;
+  Vector operator*(double scale) const;
+
   double x;
   double y;
 };

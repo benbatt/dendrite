@@ -1,9 +1,36 @@
 #include "drawingarea.h"
 
+#include <cmath>
 #include <gtkmm/eventcontrollermotion.h>
 #include <gtkmm/gestureclick.h>
 #include <gtkmm/gesturedrag.h>
 #include <iostream>
+
+double Vector::length() const
+{
+  return std::sqrt(x * x + y * y);
+}
+
+Vector Vector::normalised() const
+{
+  double length = this->length();
+
+  if (length > 0) {
+    return { x / length, y / length };
+  } else {
+    return { 0, 0 };
+  }
+}
+
+Vector Vector::operator-() const
+{
+  return { -x, -y };
+}
+
+Vector Vector::operator*(double scale) const
+{
+  return { x * scale, y * scale };
+}
 
 Point Point::operator+(const Vector& v) const
 {
@@ -178,9 +205,11 @@ void DrawingArea::setHandlePosition(const Handle& handle, const Point& position)
       break;
     case Handle::ControlA:
       node.controlA = position - node.position;
+      node.controlB = -node.controlA.normalised() * node.controlB.length();
       break;
     case Handle::ControlB:
       node.controlB = position - node.position;
+      node.controlA = -node.controlB.normalised() * node.controlA.length();
       break;
   }
 }
