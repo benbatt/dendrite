@@ -1,6 +1,6 @@
 #pragma once
 
-#include "drawingarea.h"
+#include "view/sketch.h"
 
 #include <gtkmm/window.h>
 
@@ -11,5 +11,5 @@ public:
   ~MainWindow() override;
 
 private:
-  DrawingArea mDrawingArea;
+  View::Sketch mSketchView;
 };

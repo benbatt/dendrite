@@ -2,7 +2,7 @@
 
 MainWindow::MainWindow()
 {
-  set_child(mDrawingArea);
+  set_child(mSketchView);
 }
 
 MainWindow::~MainWindow()
