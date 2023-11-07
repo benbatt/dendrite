@@ -2,21 +2,20 @@
 
 #include "view/sketch.h"
 
-#include <gtkmm/window.h>
+#include <gtkmm/applicationwindow.h>
 
 namespace Controller
 {
   class UndoManager;
 }
 
-class MainWindow : public Gtk::Window
+class MainWindow : public Gtk::ApplicationWindow
 {
 public:
   MainWindow(Controller::UndoManager* undoManager);
   ~MainWindow() override;
 
 private:
-  bool onKeyPressed(guint keyval, guint keycode, Gdk::ModifierType state);
   void onReleased(int count, double x, double y);
 
   View::Sketch mSketchView;
