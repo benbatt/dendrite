@@ -6,13 +6,18 @@
 #include "model/sketch.h"
 #include "utilities/geometry.h"
 
+namespace Controller
+{
+  class UndoManager;
+}
+
 namespace View
 {
 
 class Sketch : public Gtk::DrawingArea
 {
 public:
-  Sketch();
+  Sketch(Controller::UndoManager* undoManager);
 
 private:
   void onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width, int height);
@@ -21,8 +26,10 @@ private:
   void onDragBegin(double x, double y);
   void onDragUpdate(double x, double y);
   void onDragEnd(double x, double y);
+  void onUndoChanged();
 
   void addNode(const Point& position, const Vector& controlA, const Vector& controlB);
+  void addHandles(int nodeIndex);
   int findHandle(double x, double y);
 
   struct Handle

@@ -1,5 +1,7 @@
 #include "sketch.h"
 
+#include "controller/undo.h"
+
 #include <gtkmm/eventcontrollermotion.h>
 #include <gtkmm/gestureclick.h>
 #include <gtkmm/gesturedrag.h>
@@ -7,7 +9,7 @@
 namespace View
 {
 
-Sketch::Sketch()
+Sketch::Sketch(Controller::UndoManager *undoManager)
   : mHoverIndex(-1)
 {
   set_draw_func(sigc::mem_fun(*this, &Sketch::onDraw));
@@ -27,7 +29,9 @@ Sketch::Sketch()
   add_controller(dragController);
 
   mModel = new Model::Sketch;
-  mController = new Controller::Sketch(mModel);
+  mController = new Controller::Sketch(undoManager, mModel);
+
+  undoManager->signalChanged().connect(sigc::mem_fun(*this, &Sketch::onUndoChanged));
 
   addNode({ 30, 20 }, { -10, -10 }, { 10, 10 });
   addNode({ 60, 30 }, { -10, -10 }, { 10, 10 });
@@ -132,15 +136,30 @@ void Sketch::onDragEnd(double xOffset, double yOffset)
   }
 }
 
+void Sketch::onUndoChanged()
+{
+  mHandles.clear();
+
+  for (int i = 0; i < mModel->nodes().size(); ++i) {
+    addHandles(i);
+  }
+
+  queue_draw();
+}
+
 void Sketch::addNode(const Point& position, const Vector& controlA, const Vector& controlB)
 {
   int index = mModel->nodes().size();
 
   mController->addNode(position, controlA, controlB);
+  addHandles(index);
+}
 
-  mHandles.push_back({ .mNodeIndex = index, .mType = Controller::Node::Position });
-  mHandles.push_back({ .mNodeIndex = index, .mType = Controller::Node::ControlA });
-  mHandles.push_back({ .mNodeIndex = index, .mType = Controller::Node::ControlB });
+void Sketch::addHandles(int nodeIndex)
+{
+  mHandles.push_back({ .mNodeIndex = nodeIndex, .mType = Controller::Node::Position });
+  mHandles.push_back({ .mNodeIndex = nodeIndex, .mType = Controller::Node::ControlA });
+  mHandles.push_back({ .mNodeIndex = nodeIndex, .mType = Controller::Node::ControlB });
 }
 
 int Sketch::findHandle(double x, double y)

@@ -7,15 +7,20 @@
 namespace Controller
 {
 
-class Sketch
+class UndoManager;
+
+class Sketch : private Node::SketchAccessor
 {
 public:
-  Sketch(Model::Sketch* model);
+  Sketch(UndoManager* undoManager, Model::Sketch* model);
 
   void addNode(const Point& position, const Vector& controlA, const Vector& controlB);
   Node controllerForNode(int index);
 
 private:
+  Model::Node* getNode(int index) override;
+
+  UndoManager* mUndoManager;
   Model::Sketch* mModel;
 };
 
