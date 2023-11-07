@@ -17,6 +17,18 @@ public:
   virtual bool mergeWith(UndoCommand* other) { return false; }
 };
 
+class AutoID
+{
+public:
+  AutoID();
+
+  int value() const { return mID; }
+
+private:
+  int mID;
+  static int sNextID;
+};
+
 class UndoManager
 {
 public:
@@ -26,18 +38,10 @@ public:
   class AutoIDCommand : public UndoCommand
   {
   public:
-    AutoIDCommand()
-    {
-      if (sID == InvalidID) {
-        sID = UndoManager::sNextAutoID;
-        ++UndoManager::sNextAutoID;
-      }
-    }
-
-    int id() const override { return sID; }
+    int id() const override { return sID.value(); }
 
   private:
-    static int sID;
+    static AutoID sID;
   };
 
   template <class T_Redo, class T_Undo>
@@ -88,8 +92,6 @@ public:
   Signal signalChanged() { return mSignalChanged; }
 
 private:
-  static int sNextAutoID;
-
   std::stack<UndoCommand*> mUndoCommands;
   std::stack<UndoCommand*> mRedoCommands;
   Signal mSignalChanged;
@@ -97,6 +99,6 @@ private:
 };
 
 template <class T_Derived>
-int UndoManager::AutoIDCommand<T_Derived>::sID = UndoCommand::InvalidID;
+AutoID UndoManager::AutoIDCommand<T_Derived>::sID;
 
 }

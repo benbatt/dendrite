@@ -3,7 +3,13 @@
 namespace Controller
 {
 
-int UndoManager::sNextAutoID = 0;
+int AutoID::sNextID = UndoCommand::InvalidID + 1;
+
+AutoID::AutoID()
+  : mID(sNextID)
+{
+  ++sNextID;
+}
 
 UndoManager::UndoManager()
   : mEnableMerge(false)
