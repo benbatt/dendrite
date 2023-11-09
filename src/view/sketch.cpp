@@ -3,7 +3,6 @@
 #include "controller/undo.h"
 
 #include <gtkmm/eventcontrollermotion.h>
-#include <gtkmm/gestureclick.h>
 #include <gtkmm/gesturedrag.h>
 
 namespace View
@@ -14,9 +13,9 @@ Sketch::Sketch(Controller::UndoManager *undoManager)
 {
   set_draw_func(sigc::mem_fun(*this, &Sketch::onDraw));
 
-  auto clickController = Gtk::GestureClick::create();
-  clickController->signal_pressed().connect(sigc::mem_fun(*this, &Sketch::onPressed));
-  add_controller(clickController);
+  mClickController = Gtk::GestureClick::create();
+  mClickController->signal_pressed().connect(sigc::mem_fun(*this, &Sketch::onPressed));
+  add_controller(mClickController);
 
   auto motionController = Gtk::EventControllerMotion::create();
   motionController->signal_motion().connect(sigc::mem_fun(*this, &Sketch::onPointerMotion));
@@ -95,8 +94,24 @@ void Sketch::onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width, int
 
 void Sketch::onPressed(int count, double x, double y)
 {
+  using Gdk::ModifierType;
+
   if (count == 2) {
-    addNode({ x, y }, { -10, 0 }, { 10, 0 });
+    auto event = mClickController->get_current_event();
+
+    bool smooth = (event->get_modifier_state() & ModifierType::SHIFT_MASK) == ModifierType::SHIFT_MASK;
+
+    Point position = { x, y };
+
+    if (smooth && !mModel->nodes().empty()) {
+      const Model::Node& lastNode = mModel->nodes().back();
+
+      Vector control = (lastNode.position() - position).normalised() * 20;
+      addNode({ x, y }, control, -control);
+    } else {
+      addNode({ x, y }, { 0, 0 }, { 0, 0 });
+    }
+
     queue_draw();
   }
 }

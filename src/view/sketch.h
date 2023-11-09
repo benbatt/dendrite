@@ -1,6 +1,7 @@
 #pragma once
 
 #include <gtkmm/drawingarea.h>
+#include <gtkmm/gestureclick.h>
 
 #include "controller/sketch.h"
 #include "model/sketch.h"
@@ -44,6 +45,7 @@ private:
   Model::Sketch* mModel;
   Controller::Sketch* mController;
   std::vector<Handle> mHandles;
+  Glib::RefPtr<Gtk::GestureClick> mClickController;
 
   int mHoverIndex;
   int mDragIndex;
