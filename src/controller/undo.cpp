@@ -1,5 +1,7 @@
 #include "undo.h"
 
+#include <list>
+
 namespace Controller
 {
 
@@ -11,8 +13,34 @@ AutoID::AutoID()
   ++sNextID;
 }
 
+class UndoGroup : public UndoCommand
+{
+public:
+  void undo() override
+  {
+    for (auto it = mChildren.crbegin(); it != mChildren.crend(); ++it) {
+      (*it)->undo();
+    }
+  }
+
+  void redo() override
+  {
+    for (auto it = mChildren.cbegin(); it != mChildren.cend(); ++it) {
+      (*it)->redo();
+    }
+  }
+
+  std::string description() override
+  {
+    return "Group";
+  }
+
+  std::list<UndoCommand*> mChildren;
+};
+
 UndoManager::UndoManager()
-  : mEnableMerge(false)
+  : mCurrentGroup(nullptr)
+  , mEnableMerge(false)
 {
 }
 
@@ -20,16 +48,22 @@ void UndoManager::pushCommand(UndoCommand* command)
 {
   command->redo();
 
-  if (mEnableMerge && command->id() != UndoCommand::InvalidID && !mUndoCommands.empty()) {
-    UndoCommand* latest = mUndoCommands.top();
+  if (mEnableMerge && command->id() != UndoCommand::InvalidID) {
+    UndoCommand* latest = mCurrentGroup
+      ? (!mCurrentGroup->mChildren.empty() ? mCurrentGroup->mChildren.back() : nullptr)
+      : (!mUndoCommands.empty() ? mUndoCommands.top() : nullptr);
 
-    if (latest->id() == command->id() && latest->mergeWith(command)) {
+    if (latest && latest->id() == command->id() && latest->mergeWith(command)) {
       delete command;
       return;
     }
   }
 
-  mUndoCommands.push(command);
+  if (mCurrentGroup) {
+    mCurrentGroup->mChildren.push_back(command);
+  } else {
+    mUndoCommands.push(command);
+  }
 
   mEnableMerge = true;
 
@@ -69,6 +103,33 @@ void UndoManager::redo()
   }
 
   mEnableMerge = false;
+}
+
+void UndoManager::beginGroup()
+{
+  if (!mCurrentGroup) {
+    UndoGroup *group = new UndoGroup;
+    pushCommand(group);
+
+    mCurrentGroup = group;
+  }
+}
+
+void UndoManager::cancelGroup()
+{
+  if (mCurrentGroup) {
+    mCurrentGroup->undo();
+    mCurrentGroup = nullptr;
+
+    mUndoCommands.pop();
+  }
+}
+
+void UndoManager::endGroup()
+{
+  if (mCurrentGroup) {
+    mCurrentGroup = nullptr;
+  }
 }
 
 }

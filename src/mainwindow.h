@@ -12,7 +12,7 @@ namespace Controller
 class MainWindow : public Gtk::ApplicationWindow
 {
 public:
-  MainWindow(Controller::UndoManager* undoManager);
+  MainWindow(Controller::UndoManager* undoManager, View::Context& viewContext);
   ~MainWindow() override;
 
 private:

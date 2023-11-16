@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "controller/undo.h"
+#include "view/context.h"
 
 #include <gtkmm/application.h>
 
@@ -17,6 +18,7 @@ private:
   void onRedo();
 
   Controller::UndoManager mUndoManager;
+  View::Context mViewContext;
 };
 
 Glib::RefPtr<Application> Application::create()
@@ -26,7 +28,7 @@ Glib::RefPtr<Application> Application::create()
 
 void Application::on_activate()
 {
-  MainWindow* mainWindow = new MainWindow(&mUndoManager);
+  MainWindow* mainWindow = new MainWindow(&mUndoManager, mViewContext);
   add_window(*mainWindow);
 
   mainWindow->signal_hide().connect([mainWindow]() { delete mainWindow; });
@@ -40,9 +42,17 @@ void Application::on_startup()
 
   add_action("undo", sigc::mem_fun(*this, &Application::onUndo));
   add_action("redo", sigc::mem_fun(*this, &Application::onRedo));
+  mViewContext.mAddAction = add_action("add");
+  mViewContext.mMoveAction = add_action("move");
+  mViewContext.mCancelAction = add_action("cancel");
+  mViewContext.mViewAction = add_action("view");
 
   set_accel_for_action("app.undo", "<Control>Z");
   set_accel_for_action("app.redo", "<Control><Shift>Z");
+  set_accel_for_action("app.add", "A");
+  set_accel_for_action("app.move", "M");
+  set_accel_for_action("app.cancel", "Escape");
+  set_accel_for_action("app.view", "space");
 
   auto menuBar = Gio::Menu::create();
 
@@ -51,6 +61,11 @@ void Application::on_startup()
 
   editMenu->append("_Undo", "app.undo");
   editMenu->append("_Redo", "app.redo");
+
+  auto actionSection = Gio::Menu::create();
+  editMenu->append_section(actionSection);
+
+  actionSection->append("_Add", "app.add");
 
   set_menubar(menuBar);
 }

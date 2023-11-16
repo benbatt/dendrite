@@ -2,6 +2,7 @@
 
 #include <sigc++/sigc++.h>
 #include <stack>
+#include <string>
 
 namespace Controller
 {
@@ -9,10 +10,13 @@ namespace Controller
 class UndoCommand
 {
 public:
+  virtual ~UndoCommand() { }
+
   static const int InvalidID = 0;
 
   virtual void undo() = 0;
   virtual void redo() = 0;
+  virtual std::string description() = 0;
   virtual int id() const { return InvalidID; }
   virtual bool mergeWith(UndoCommand* other) { return false; }
 };
@@ -28,6 +32,8 @@ private:
   int mID;
   static int sNextID;
 };
+
+class UndoGroup;
 
 class UndoManager
 {
@@ -48,9 +54,10 @@ public:
   class LambdaCommand : public UndoCommand
   {
   public:
-    LambdaCommand(const T_Redo& redo, const T_Undo& undo)
+    LambdaCommand(const T_Redo& redo, const T_Undo& undo, const std::string& description)
       : mRedo(redo)
       , mUndo(undo)
+      , mDescription(description)
     {
     }
 
@@ -64,21 +71,27 @@ public:
       mRedo();
     }
 
+    std::string description() override
+    {
+      return mDescription;
+    }
+
   private:
     T_Redo mRedo;
     T_Undo mUndo;
+    std::string mDescription;
   };
 
   template <class T_Redo, class T_Undo>
-  static UndoCommand* createCommand(const T_Redo& redo, const T_Undo& undo)
+  static UndoCommand* createCommand(const T_Redo& redo, const T_Undo& undo, const std::string& description)
   {
-    return new LambdaCommand<T_Redo, T_Undo>(redo, undo);
+    return new LambdaCommand<T_Redo, T_Undo>(redo, undo, description);
   }
 
   template <class T_Redo, class T_Undo>
-  void pushCommand(const T_Redo& redo, const T_Undo& undo)
+  void pushCommand(const T_Redo& redo, const T_Undo& undo, const std::string& description)
   {
-    pushCommand(createCommand(redo, undo));
+    pushCommand(createCommand(redo, undo, description));
   }
 
   void pushCommand(UndoCommand* command);
@@ -86,6 +99,10 @@ public:
 
   void undo();
   void redo();
+
+  void beginGroup();
+  void cancelGroup();
+  void endGroup();
 
   using Signal = sigc::signal<void()>;
 
@@ -95,6 +112,7 @@ private:
   std::stack<UndoCommand*> mUndoCommands;
   std::stack<UndoCommand*> mRedoCommands;
   Signal mSignalChanged;
+  UndoGroup* mCurrentGroup;
   bool mEnableMerge;
 };
 

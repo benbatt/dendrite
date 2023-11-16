@@ -15,21 +15,27 @@ namespace Controller
 namespace View
 {
 
+class Context;
+
 class Sketch : public Gtk::DrawingArea
 {
 public:
-  Sketch(Controller::UndoManager* undoManager);
+  Sketch(Controller::UndoManager* undoManager, Context& context);
 
 private:
   void onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width, int height);
-  void onPressed(int count, double x, double y);
+  void onPointerPressed(int count, double x, double y);
   void onPointerMotion(double x, double y);
   void onDragBegin(double x, double y);
   void onDragUpdate(double x, double y);
   void onDragEnd(double x, double y);
   void onUndoChanged();
+  void activateAddMode(const Glib::VariantBase&);
+  void activateMoveMode(const Glib::VariantBase&);
+  void activateViewMode(const Glib::VariantBase&);
+  void onCancel(const Glib::VariantBase&);
 
-  void addNode(const Point& position, const Vector& controlA, const Vector& controlB);
+  void addNode(int index, const Point& position, const Vector& controlA, const Vector& controlB);
   void addHandles(int nodeIndex);
   int findHandle(double x, double y);
 
@@ -42,11 +48,24 @@ private:
   Point handlePosition(const Handle& handle) const;
   void setHandlePosition(const Handle& handle, const Point& position);
 
+  enum class Mode
+  {
+    View,
+    Move,
+    Add,
+    Move_Place,
+    Add_Place,
+  };
+
+  void setMode(Mode mode);
+
   Model::Sketch* mModel;
   Controller::Sketch* mController;
+  Controller::UndoManager* mUndoManager;
   std::vector<Handle> mHandles;
   Glib::RefPtr<Gtk::GestureClick> mClickController;
 
+  Mode mMode;
   int mHoverIndex;
   int mDragIndex;
   Point mDragStart;

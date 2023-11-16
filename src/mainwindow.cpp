@@ -2,11 +2,10 @@
 
 #include "controller/undo.h"
 
-#include <gtkmm/eventcontrollerkey.h>
 #include <gtkmm/gestureclick.h>
 
-MainWindow::MainWindow(Controller::UndoManager* undoManager)
-  : mSketchView(undoManager)
+MainWindow::MainWindow(Controller::UndoManager* undoManager, View::Context& viewContext)
+  : mSketchView(undoManager, viewContext)
   , mUndoManager(undoManager)
 {
   set_show_menubar(true);

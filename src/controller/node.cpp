@@ -45,14 +45,19 @@ public:
   {
   }
 
-  void redo()
+  void redo() override
   { 
     Node::position(mSketchAccessor->getNode(mNodeIndex)) = mPosition;
   }
 
-  void undo()
+  void undo() override
   { 
     Node::position(mSketchAccessor->getNode(mNodeIndex)) = mOldPosition;
+  }
+
+  std::string description() override
+  {
+    return "Move node";
   }
 
   bool mergeWith(UndoCommand* other) override
@@ -115,6 +120,11 @@ public:
 
     Node::controlA(model) = mOldControlA;
     Node::controlB(model) = mOldControlB;
+  }
+
+  std::string description() override
+  {
+    return "Move control point";
   }
 
   bool mergeWith(UndoCommand* other) override

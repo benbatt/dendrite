@@ -14,7 +14,7 @@ class Sketch : private Node::SketchAccessor
 public:
   Sketch(UndoManager* undoManager, Model::Sketch* model);
 
-  void addNode(const Point& position, const Vector& controlA, const Vector& controlB);
+  void addNode(int index, const Point& position, const Vector& controlA, const Vector& controlB);
   Node controllerForNode(int index);
 
 private:

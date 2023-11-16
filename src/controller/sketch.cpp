@@ -11,11 +11,19 @@ Sketch::Sketch(UndoManager *undoManager, Model::Sketch* model)
 {
 }
 
-void Sketch::addNode(const Point& position, const Vector& controlA, const Vector& controlB)
+void Sketch::addNode(int index, const Point& position, const Vector& controlA, const Vector& controlB)
 {
-  mUndoManager->pushCommand(
-    [=]() { mModel->mNodes.push_back(Model::Node(position, controlA, controlB)); },
-    [=]() { mModel->mNodes.pop_back(); });
+  if (index == 0) {
+    mUndoManager->pushCommand(
+      [=]() { mModel->mNodes.insert(mModel->mNodes.begin(), Model::Node(position, controlA, controlB)); },
+      [=]() { mModel->mNodes.erase(mModel->mNodes.begin()); },
+      "Add node");
+  } else if (index == mModel->nodes().size()) {
+    mUndoManager->pushCommand(
+      [=]() { mModel->mNodes.push_back(Model::Node(position, controlA, controlB)); },
+      [=]() { mModel->mNodes.pop_back(); },
+      "Add node");
+  }
 }
 
 Node Sketch::controllerForNode(int index)

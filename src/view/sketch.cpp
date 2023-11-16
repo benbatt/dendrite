@@ -1,6 +1,7 @@
 #include "sketch.h"
 
 #include "controller/undo.h"
+#include "view/context.h"
 
 #include <gtkmm/eventcontrollermotion.h>
 #include <gtkmm/gesturedrag.h>
@@ -8,32 +9,33 @@
 namespace View
 {
 
-Sketch::Sketch(Controller::UndoManager *undoManager)
-  : mHoverIndex(-1)
+Sketch::Sketch(Controller::UndoManager *undoManager, Context& context)
+  : mUndoManager(undoManager)
+  , mMode(Mode::Move)
+  , mHoverIndex(-1)
 {
   set_draw_func(sigc::mem_fun(*this, &Sketch::onDraw));
 
+  context.addAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::activateAddMode));
+  context.moveAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::activateMoveMode));
+  context.viewAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::activateViewMode));
+  context.cancelAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::onCancel));
+
   mClickController = Gtk::GestureClick::create();
-  mClickController->signal_pressed().connect(sigc::mem_fun(*this, &Sketch::onPressed));
+  mClickController->signal_pressed().connect(sigc::mem_fun(*this, &Sketch::onPointerPressed));
   add_controller(mClickController);
 
   auto motionController = Gtk::EventControllerMotion::create();
   motionController->signal_motion().connect(sigc::mem_fun(*this, &Sketch::onPointerMotion));
   add_controller(motionController);
 
-  auto dragController = Gtk::GestureDrag::create();
-  dragController->signal_drag_begin().connect(sigc::mem_fun(*this, &Sketch::onDragBegin));
-  dragController->signal_drag_update().connect(sigc::mem_fun(*this, &Sketch::onDragUpdate));
-  dragController->signal_drag_end().connect(sigc::mem_fun(*this, &Sketch::onDragEnd));
-  add_controller(dragController);
-
   mModel = new Model::Sketch;
   mController = new Controller::Sketch(undoManager, mModel);
 
   undoManager->signalChanged().connect(sigc::mem_fun(*this, &Sketch::onUndoChanged));
 
-  addNode({ 30, 20 }, { -10, -10 }, { 10, 10 });
-  addNode({ 60, 30 }, { -10, -10 }, { 10, 10 });
+  addNode(0, { 30, 20 }, { -10, -10 }, { 10, 10 });
+  addNode(1, { 60, 30 }, { -10, -10 }, { 10, 10 });
 }
 
 const int HandleSize = 10;
@@ -56,6 +58,26 @@ void drawHandle(const Cairo::RefPtr<Cairo::Context>& context, double size, const
   context->fill();
 }
 
+void drawAddHandle(const Cairo::RefPtr<Cairo::Context>& context, double size, const Point& position, bool hover)
+{
+  float halfSize = size / 2;
+
+  context->move_to(position.x - halfSize, position.y);
+  context->line_to(position.x + halfSize, position.y);
+
+  context->move_to(position.x, position.y - halfSize);
+  context->line_to(position.x, position.y + halfSize);
+
+  if (hover) {
+    context->set_source_rgb(1, 1, 1);
+  } else {
+    context->set_source_rgb(0, 0, 0);
+  }
+
+  context->set_line_width(2);
+  context->stroke();
+}
+
 void Sketch::onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width, int height)
 {
   const Model::Sketch::NodeList& nodes = mModel->nodes();
@@ -76,78 +98,99 @@ void Sketch::onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width, int
     context->stroke();
   }
 
-  for (const Model::Node& n : nodes) {
-    context->move_to(n.position().x, n.position().y);
-    context->rel_line_to(n.controlA().x, n.controlA().y);
-    context->move_to(n.position().x, n.position().y);
-    context->rel_line_to(n.controlB().x, n.controlB().y);
+  if (mMode != Mode::View) {
+    for (const Model::Node& n : nodes) {
+      context->move_to(n.position().x, n.position().y);
+      context->rel_line_to(n.controlA().x, n.controlA().y);
+      context->move_to(n.position().x, n.position().y);
+      context->rel_line_to(n.controlB().x, n.controlB().y);
+    }
+
+    context->set_source_rgb(0, 0, 0);
+    context->set_line_width(0.5);
+    context->stroke();
   }
 
-  context->set_source_rgb(0, 0, 0);
-  context->set_line_width(0.5);
-  context->stroke();
-
-  for (int i = 0; i < mHandles.size(); ++i) {
-    drawHandle(context, HandleSize, handlePosition(mHandles[i]), i == mHoverIndex);
+  if (mMode == Mode::Move) {
+    for (int i = 0; i < mHandles.size(); ++i) {
+      drawHandle(context, HandleSize, handlePosition(mHandles[i]), i == mHoverIndex);
+    }
+  } else if (mMode == Mode::Add) {
+    for (int i = 0; i < mHandles.size(); ++i) {
+      if ((mHandles[i].mNodeIndex == 0 && mHandles[i].mType == Controller::Node::ControlA)
+          || (mHandles[i].mNodeIndex == mModel->nodes().size() - 1 && mHandles[i].mType == Controller::Node::ControlB)) {
+        drawAddHandle(context, HandleSize, handlePosition(mHandles[i]), i == mHoverIndex);
+      }
+    }
   }
 }
 
-void Sketch::onPressed(int count, double x, double y)
+void Sketch::onPointerPressed(int count, double x, double y)
 {
   using Gdk::ModifierType;
 
-  if (count == 2) {
-    auto event = mClickController->get_current_event();
-
-    bool smooth = (event->get_modifier_state() & ModifierType::SHIFT_MASK) == ModifierType::SHIFT_MASK;
-
-    Point position = { x, y };
-
-    if (smooth && !mModel->nodes().empty()) {
-      const Model::Node& lastNode = mModel->nodes().back();
-
-      Vector control = (lastNode.position() - position).normalised() * 20;
-      addNode({ x, y }, control, -control);
-    } else {
-      addNode({ x, y }, { 0, 0 }, { 0, 0 });
+  if (mMode == Mode::Move) {
+    if (mHoverIndex < 0) {
+      return;
     }
 
+    mUndoManager->beginGroup();
+
+    mDragIndex = mHoverIndex;
+    mMode = Mode::Move_Place;
+  } else if (mMode == Mode::Add) {
+    if (mHoverIndex < 0) {
+      return;
+    }
+
+    auto addNode = [this, x, y](int index) {
+      mUndoManager->beginGroup();
+
+      this->addNode(index, { x, y }, { -10, -10 }, { 10, 10 });
+
+      for (int i = 0; i < mHandles.size(); ++i) {
+        if (mHandles[i].mType == Controller::Node::Position && mHandles[i].mNodeIndex == index) {
+          mDragIndex = i;
+          break;
+        }
+      }
+
+      mMode = Mode::Add_Place;
+      queue_draw();
+    };
+
+    const Handle& handle = mHandles[mHoverIndex];
+
+    if (handle.mNodeIndex == 0 && handle.mType == Controller::Node::ControlA) {
+      addNode(0);
+    } else if (handle.mNodeIndex == mModel->nodes().size() - 1 && handle.mType == Controller::Node::ControlB) {
+      addNode(mModel->nodes().size());
+    }
+  } else if (mMode == Mode::Move_Place) {
+    mUndoManager->endGroup();
+    mMode = Mode::Move;
+    queue_draw();
+  } else if (mMode == Mode::Add_Place) {
+    mUndoManager->endGroup();
+    mMode = Mode::Add;
     queue_draw();
   }
 }
 
 void Sketch::onPointerMotion(double x, double y)
 {
-  int newHoverIndex = findHandle(x, y);
+  if (mMode == Mode::Move_Place || mMode == Mode::Add_Place) {
+    if (mDragIndex >= 0) {
+      setHandlePosition(mHandles[mDragIndex], { x, y });
+      queue_draw();
+    }
+  } else {
+    int newHoverIndex = findHandle(x, y);
 
-  if (newHoverIndex != mHoverIndex) {
-    mHoverIndex = newHoverIndex;
-    queue_draw();
-  }
-}
-
-void Sketch::onDragBegin(double x, double y)
-{
-  mDragIndex = findHandle(x, y);
-
-  if (mDragIndex >= 0) {
-    mDragStart = handlePosition(mHandles[mDragIndex]);
-  }
-}
-
-void Sketch::onDragUpdate(double xOffset, double yOffset)
-{
-  if (mDragIndex >= 0) {
-    setHandlePosition(mHandles[mDragIndex], mDragStart + Vector{ xOffset, yOffset });
-    queue_draw();
-  }
-}
-
-void Sketch::onDragEnd(double xOffset, double yOffset)
-{
-  if (mDragIndex >= 0) {
-    setHandlePosition(mHandles[mDragIndex], mDragStart + Vector{ xOffset, yOffset });
-    queue_draw();
+    if (newHoverIndex != mHoverIndex) {
+      mHoverIndex = newHoverIndex;
+      queue_draw();
+    }
   }
 }
 
@@ -162,11 +205,33 @@ void Sketch::onUndoChanged()
   queue_draw();
 }
 
-void Sketch::addNode(const Point& position, const Vector& controlA, const Vector& controlB)
+void Sketch::activateAddMode(const Glib::VariantBase&)
 {
-  int index = mModel->nodes().size();
+  setMode(Mode::Add);
+}
 
-  mController->addNode(position, controlA, controlB);
+void Sketch::activateMoveMode(const Glib::VariantBase&)
+{
+  setMode(Mode::Move);
+}
+
+void Sketch::activateViewMode(const Glib::VariantBase&)
+{
+  setMode(Mode::View);
+}
+
+void Sketch::onCancel(const Glib::VariantBase&)
+{
+  if (mMode == Mode::Add_Place) {
+    setMode(Mode::Add);
+  } else if (mMode == Mode::Move_Place) {
+    setMode(Mode::Move);
+  }
+}
+
+void Sketch::addNode(int index, const Point& position, const Vector& controlA, const Vector& controlB)
+{
+  mController->addNode(index, position, controlA, controlB);
   addHandles(index);
 }
 
@@ -201,6 +266,19 @@ Point Sketch::handlePosition(const Handle& handle) const
 void Sketch::setHandlePosition(const Handle& handle, const Point& position)
 {
   mController->controllerForNode(handle.mNodeIndex).setHandlePosition(handle.mType, position);
+}
+
+void Sketch::setMode(Mode mode)
+{
+  if (mMode != mode) {
+    if (mMode == Mode::Add_Place || mMode == Mode::Move_Place) {
+      mUndoManager->cancelGroup();
+      onUndoChanged();
+    }
+
+    mMode = mode;
+    queue_draw();
+  }
 }
 
 }
