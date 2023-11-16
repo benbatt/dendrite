@@ -83,7 +83,7 @@ class SetNodeControlPointCommand : public UndoManager::AutoIDCommand<SetNodeCont
 {
 public:
   SetNodeControlPointCommand(Node::SketchAccessor* sketchAccessor, int nodeIndex, const Point& position,
-      Node::HandleType handleType)
+      Node::HandleType handleType, Node::SetPositionMode mode)
     : mSketchAccessor(sketchAccessor)
     , mNodeIndex(nodeIndex)
     , mHandleType(handleType)
@@ -92,14 +92,25 @@ public:
   {
     Model::Node* model = mSketchAccessor->getNode(mNodeIndex);
 
+    auto opposingControlPoint = [=](const Vector& control, const Vector& currentOpposingControl) {
+      switch (mode) {
+        case Node::SetPositionMode::Smooth:
+          return -control.normalised() * currentOpposingControl.length();
+        case Node::SetPositionMode::Symmetrical:
+          return -control;
+        default:
+          assert(false);
+      }
+    };
+
     switch (handleType) {
       case Node::ControlA:
         mControlA = position - model->position();
-        mControlB = -model->controlA().normalised() * model->controlB().length();
+        mControlB = opposingControlPoint(mControlA, model->controlB());
         break;
       case Node::ControlB:
         mControlB = position - model->position();
-        mControlA = -model->controlB().normalised() * model->controlA().length();
+        mControlA = opposingControlPoint(mControlB, model->controlA());
         break;
       default:
         assert(false);
@@ -151,7 +162,7 @@ private:
   Vector mOldControlB;
 };
 
-void Node::setHandlePosition(HandleType type, const Point& position)
+void Node::setHandlePosition(HandleType type, const Point& position, SetPositionMode mode)
 {
   switch (type) {
     case Position:
@@ -159,7 +170,7 @@ void Node::setHandlePosition(HandleType type, const Point& position)
       break;
     case ControlA:
     case ControlB:
-      mUndoManager->pushCommand(new SetNodeControlPointCommand(mSketchAccessor, mNodeIndex, position, type));
+      mUndoManager->pushCommand(new SetNodeControlPointCommand(mSketchAccessor, mNodeIndex, position, type, mode));
       break;
     default:
       assert(false);

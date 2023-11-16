@@ -31,8 +31,14 @@ public:
     ControlB,
   };
 
+  enum class SetPositionMode
+  {
+    Smooth,
+    Symmetrical,
+  };
+
   Point handlePosition(HandleType type) const;
-  void setHandlePosition(HandleType type, const Point& position);
+  void setHandlePosition(HandleType type, const Point& position, SetPositionMode mode);
 
 private:
   friend class SetNodePositionCommand;

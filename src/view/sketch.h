@@ -25,6 +25,7 @@ public:
 private:
   void onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width, int height);
   void onPointerPressed(int count, double x, double y);
+  void onPointerReleased(int count, double x, double y);
   void onPointerMotion(double x, double y);
   void onDragBegin(double x, double y);
   void onDragUpdate(double x, double y);
@@ -38,6 +39,7 @@ private:
   void addNode(int index, const Point& position, const Vector& controlA, const Vector& controlB);
   void addHandles(int nodeIndex);
   int findHandle(double x, double y);
+  int findHandleForNode(int nodeIndex, Controller::Node::HandleType type);
 
   struct Handle
   {
@@ -46,7 +48,7 @@ private:
   };
 
   Point handlePosition(const Handle& handle) const;
-  void setHandlePosition(const Handle& handle, const Point& position);
+  void setHandlePosition(const Handle& handle, const Point& position, Controller::Node::SetPositionMode mode);
 
   enum class Mode
   {
@@ -55,6 +57,7 @@ private:
     Add,
     Move_Place,
     Add_Place,
+    Add_Adjust,
   };
 
   void setMode(Mode mode);
