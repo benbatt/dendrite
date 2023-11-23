@@ -23,9 +23,12 @@ public:
   Sketch(Controller::UndoManager* undoManager, Context& context);
 
 private:
+  friend class SketchModeMove;
+  friend class SketchModeAdd;
+  friend class SketchModePlace;
+
   void onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width, int height);
   void onPointerPressed(int count, double x, double y);
-  void onPointerReleased(int count, double x, double y);
   void onPointerMotion(double x, double y);
   void onDragBegin(double x, double y);
   void onDragUpdate(double x, double y);
@@ -50,28 +53,30 @@ private:
   Point handlePosition(const Handle& handle) const;
   void setHandlePosition(const Handle& handle, const Point& position, Controller::Node::SetPositionMode mode);
 
-  enum class Mode
+  class Mode
   {
-    View,
-    Move,
-    Add,
-    Move_Place,
-    Add_Place,
-    Add_Adjust,
+  public:
+    virtual void draw(Sketch& sketch, const Cairo::RefPtr<Cairo::Context>& context, int width, int height) { }
+    virtual void onPointerPressed(Sketch& sketch, int count, double x, double y) { }
+    virtual void onPointerReleased(Sketch& sketch, int count, double x, double y) { }
+    virtual bool onPointerMotion(Sketch& sketch, double x, double y) { return false; }
+    virtual void onCancel(Sketch& sketch) { }
+    virtual void onChildPopped(Sketch& sketch, Mode* child) { }
   };
 
-  void setMode(Mode mode);
+  void pushMode(Mode* mode);
+  void popMode(Mode* mode);
+  void cancelModeStack();
 
   Model::Sketch* mModel;
   Controller::Sketch* mController;
   Controller::UndoManager* mUndoManager;
+  std::list<Mode*> mModeStack;
   std::vector<Handle> mHandles;
   Glib::RefPtr<Gtk::GestureClick> mClickController;
 
-  Mode mMode;
   int mHoverIndex;
   int mDragIndex;
-  Point mDragStart;
 };
 
 }
