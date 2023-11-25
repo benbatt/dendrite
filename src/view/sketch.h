@@ -31,9 +31,6 @@ private:
   void onPointerPressed(int count, double x, double y);
   void onSecondaryPointerPressed(int count, double x, double y);
   void onPointerMotion(double x, double y);
-  void onDragBegin(double x, double y);
-  void onDragUpdate(double x, double y);
-  void onDragEnd(double x, double y);
   void onUndoChanged();
   void activateAddMode(const Glib::VariantBase&);
   void activateMoveMode(const Glib::VariantBase&);
