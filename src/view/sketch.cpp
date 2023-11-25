@@ -65,7 +65,6 @@ public:
 
   void onPointerPressed(Sketch& sketch, int count, double x, double y) override
   {
-    sketch.mUndoManager->endGroup();
     sketch.popMode(this);
   }
 
@@ -118,6 +117,13 @@ public:
     sketch.mDragIndex = sketch.mHoverIndex;
     sketch.pushMode(&SketchModePlace::sInstance);
   }
+
+  void onChildPopped(Sketch& sketch, Sketch::Mode* child) override
+  {
+    if (child == &SketchModePlace::sInstance) {
+      sketch.mUndoManager->endGroup();
+    }
+  }
 };
 
 SketchModeMove SketchModeMove::sInstance;
@@ -146,29 +152,12 @@ public:
 
   void onPointerPressed(Sketch& sketch, int count, double x, double y) override
   {
-    if (sketch.mHoverIndex < 0) {
-      return;
-    }
-
-    auto addNode = [this, &sketch, x, y](int index) {
-      sketch.mUndoManager->beginGroup();
-
-      sketch.addNode(index, { x, y }, { 0, 0 }, { 0, 0 });
-
-      sketch.mDragIndex = sketch.findHandleForNode(index, Controller::Node::Position);
-      sketch.pushMode(&mSetPositionMode);
-    };
-
-    const Sketch::Handle& handle = sketch.mHandles[sketch.mHoverIndex];
-
-    if (handle.mNodeIndex == 0 && handle.mType == Controller::Node::ControlA) {
-      addNode(0);
-    } else if (handle.mNodeIndex == sketch.mModel->nodes().size() - 1 && handle.mType == Controller::Node::ControlB) {
-      addNode(sketch.mModel->nodes().size());
+    if (sketch.mHoverIndex >= 0) {
+      addNode(sketch, sketch.mHoverIndex);
     }
   }
 
-  void onChildPopped(Sketch& sketch, Sketch::Mode* child)
+  void onChildPopped(Sketch& sketch, Sketch::Mode* child) override
   {
     if (child == &mSetPositionMode) {
       const Sketch::Handle& handle = sketch.mHandles[sketch.mDragIndex];
@@ -180,10 +169,36 @@ public:
       }
 
       sketch.pushMode(&mAdjustHandlesMode);
+    } else if (child == &mAdjustHandlesMode) {
+      sketch.mUndoManager->endGroup();
+
+      addNode(sketch, sketch.mDragIndex);
     }
   }
 
 private:
+  void addNode(Sketch& sketch, int handleIndex)
+  {
+    int addIndex = -1;
+
+    const Sketch::Handle& handle = sketch.mHandles[handleIndex];
+
+    if (handle.mNodeIndex == 0 && handle.mType == Controller::Node::ControlA) {
+      addIndex = 0;
+    } else if (handle.mNodeIndex == sketch.mModel->nodes().size() - 1 && handle.mType == Controller::Node::ControlB) {
+      addIndex = sketch.mModel->nodes().size();
+    } else {
+      return;
+    }
+
+    sketch.mUndoManager->beginGroup();
+
+    sketch.addNode(addIndex, sketch.handlePosition(handle), { 0, 0 }, { 0, 0 });
+
+    sketch.mDragIndex = sketch.findHandleForNode(addIndex, Controller::Node::Position);
+    sketch.pushMode(&mSetPositionMode);
+  };
+
   SketchModePlace mSetPositionMode;
   SketchModePlace mAdjustHandlesMode;
 };
