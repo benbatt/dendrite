@@ -201,9 +201,14 @@ Sketch::Sketch(Controller::UndoManager *undoManager, Context& context)
   context.viewAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::activateViewMode));
   context.cancelAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::onCancel));
 
-  mClickController = Gtk::GestureClick::create();
-  mClickController->signal_pressed().connect(sigc::mem_fun(*this, &Sketch::onPointerPressed));
-  add_controller(mClickController);
+  auto clickController = Gtk::GestureClick::create();
+  clickController->signal_pressed().connect(sigc::mem_fun(*this, &Sketch::onPointerPressed));
+  add_controller(clickController);
+
+  auto secondaryClickController = Gtk::GestureClick::create();
+  secondaryClickController->set_button(GDK_BUTTON_SECONDARY);
+  secondaryClickController->signal_pressed().connect(sigc::mem_fun(*this, &Sketch::onSecondaryPointerPressed));
+  add_controller(secondaryClickController);
 
   auto motionController = Gtk::EventControllerMotion::create();
   motionController->signal_motion().connect(sigc::mem_fun(*this, &Sketch::onPointerMotion));
@@ -263,6 +268,11 @@ void Sketch::onPointerPressed(int count, double x, double y)
   }
 }
 
+void Sketch::onSecondaryPointerPressed(int count, double x, double y)
+{
+  onCancel(Glib::VariantBase());
+}
+
 void Sketch::onPointerMotion(double x, double y)
 {
   bool consumed = false;
@@ -313,7 +323,9 @@ void Sketch::onCancel(const Glib::VariantBase&)
 {
   if (!mModeStack.empty()) {
     mModeStack.front()->onCancel(*this);
-    popMode(mModeStack.front());
+    mModeStack.pop_front();
+
+    queue_draw();
   }
 }
 

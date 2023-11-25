@@ -29,6 +29,7 @@ private:
 
   void onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width, int height);
   void onPointerPressed(int count, double x, double y);
+  void onSecondaryPointerPressed(int count, double x, double y);
   void onPointerMotion(double x, double y);
   void onDragBegin(double x, double y);
   void onDragUpdate(double x, double y);
@@ -73,7 +74,6 @@ private:
   Controller::UndoManager* mUndoManager;
   std::list<Mode*> mModeStack;
   std::vector<Handle> mHandles;
-  Glib::RefPtr<Gtk::GestureClick> mClickController;
 
   int mHoverIndex;
   int mDragIndex;
