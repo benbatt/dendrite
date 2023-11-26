@@ -438,13 +438,13 @@ void Sketch::addHandles(int nodeIndex)
 
 int Sketch::findHandle(double x, double y)
 {
-  float halfSize = HandleSize / 2;
+  const float Radius = HandleSize / 2;
 
-  for (int i = 0; i < mHandles.size(); ++i) {
+  for (int i = mHandles.size() - 1; i >= 0; --i) {
     const Point position = handlePosition(mHandles[i]);
 
-    if (position.x - halfSize <= x && x < position.x + halfSize
-      && position.y - halfSize <= y && y < position.y + halfSize) {
+    if (position.x - Radius <= x && x < position.x + Radius
+      && position.y - Radius <= y && y < position.y + Radius) {
       return i;
     }
   }
