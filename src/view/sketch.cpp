@@ -19,11 +19,11 @@ enum class HandleStyle
 };
 
 using NodeType = Model::Node::Type;
+using HandleType = Controller::Node::HandleType;
 
-HandleStyle handleStyle(NodeType nodeType, Controller::Node::HandleType handleType)
+HandleStyle handleStyle(NodeType nodeType, HandleType handleType)
 {
-  if (handleType == Controller::Node::HandleType::Position) {
-
+  if (handleType == HandleType::Position) {
     switch (nodeType) {
       case NodeType::Symmetric:
         return HandleStyle::Symmetric;
@@ -141,6 +141,10 @@ public:
         case NodeType::Sharp:
           controller.setType(NodeType::Symmetric);
           break;
+      }
+
+      if (handle.mType != HandleType::Position) {
+        controller.setHandlePosition(handle.mType, sketch.handlePosition(handle));
       }
 
       sketch.queue_draw();
@@ -452,7 +456,7 @@ int Sketch::findHandle(double x, double y)
   return -1;
 }
 
-int Sketch::findHandleForNode(int nodeIndex, Controller::Node::HandleType type)
+int Sketch::findHandleForNode(int nodeIndex, HandleType type)
 {
   for (int i = 0; i < mHandles.size(); ++i) {
     if (mHandles[i].mNodeIndex == nodeIndex && mHandles[i].mType == type) {
