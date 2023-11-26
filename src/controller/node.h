@@ -2,10 +2,7 @@
 
 #include "utilities/geometry.h"
 
-namespace Model
-{
-  class Node;
-}
+#include "model/node.h"
 
 namespace Controller
 {
@@ -31,22 +28,22 @@ public:
     ControlB,
   };
 
-  enum class SetPositionMode
-  {
-    Smooth,
-    Symmetrical,
-  };
-
   Point handlePosition(HandleType type) const;
-  void setHandlePosition(HandleType type, const Point& position, SetPositionMode mode);
+  void setHandlePosition(HandleType type, const Point& position);
+
+  using Type = Model::Node::Type;
+
+  void setType(Type type);
 
 private:
+  friend class SetNodeTypeCommand;
   friend class SetNodePositionCommand;
   friend class SetNodeControlPointCommand;
 
   static Point& position(Model::Node* model);
   static Vector& controlA(Model::Node* model);
   static Vector& controlB(Model::Node* model);
+  static Type& type(Model::Node* model);
 
   UndoManager* mUndoManager;
   SketchAccessor* mSketchAccessor;

@@ -3,18 +3,66 @@
 #include "controller/undo.h"
 #include "view/context.h"
 
+#include <gtkmm/eventcontrollerkey.h>
 #include <gtkmm/eventcontrollermotion.h>
 #include <gtkmm/gesturedrag.h>
 
 namespace View
 {
 
-const int HandleSize = 10;
-
-void drawHandle(const Cairo::RefPtr<Cairo::Context>& context, double size, const Point& position, bool hover)
+enum class HandleStyle
 {
-  float halfSize = size / 2;
-  context->rectangle(position.x - halfSize, position.y - halfSize, size, size);
+  Symmetric,
+  Smooth,
+  Sharp,
+  Control,
+};
+
+using NodeType = Model::Node::Type;
+
+HandleStyle handleStyle(NodeType nodeType, Controller::Node::HandleType handleType)
+{
+  if (handleType == Controller::Node::HandleType::Position) {
+
+    switch (nodeType) {
+      case NodeType::Symmetric:
+        return HandleStyle::Symmetric;
+      case NodeType::Smooth:
+        return HandleStyle::Smooth;
+      case NodeType::Sharp:
+        return HandleStyle::Sharp;
+    }
+  }
+
+  return HandleStyle::Control;
+}
+
+const float HandleSize = 10;
+
+void drawHandle(const Cairo::RefPtr<Cairo::Context>& context, HandleStyle style, const Point& position, bool hover)
+{
+  const float HalfSize = HandleSize / 2;
+
+  switch (style) {
+    case HandleStyle::Symmetric:
+      context->arc(position.x, position.y, HalfSize, 0, 2 * M_PI);
+      context->close_path();
+      break;
+    case HandleStyle::Smooth:
+      context->rectangle(position.x - HalfSize, position.y - HalfSize, HandleSize, HandleSize);
+      break;
+    case HandleStyle::Sharp:
+      context->move_to(position.x - HalfSize, position.y);
+      context->line_to(position.x, position.y - HalfSize);
+      context->line_to(position.x + HalfSize, position.y);
+      context->line_to(position.x, position.y + HalfSize);
+      context->close_path();
+      break;
+    case HandleStyle::Control:
+      context->arc(position.x, position.y, HalfSize / 2, 0, 2 * M_PI);
+      context->close_path();
+      break;
+  }
 
   context->set_source_rgb(0, 0, 0);
   context->set_line_width(2);
@@ -54,11 +102,6 @@ class SketchModePlace : public Sketch::Mode
 public:
   static SketchModePlace sInstance;
 
-  SketchModePlace(Controller::Node::SetPositionMode setPositionMode = Controller::Node::SetPositionMode::Smooth)
-    : mSetPositionMode(setPositionMode)
-  {
-  }
-
   void draw(Sketch& sketch, const Cairo::RefPtr<Cairo::Context>& context, int width, int height) override
   {
   }
@@ -73,21 +116,46 @@ public:
     int dragIndex = sketch.mDragIndex;
 
     if (dragIndex >= 0) {
-      sketch.setHandlePosition(sketch.mHandles[dragIndex], { x, y }, mSetPositionMode);
+      sketch.setHandlePosition(sketch.mHandles[dragIndex], { x, y });
       sketch.queue_draw();
     }
 
     return true;
   }
 
+  bool onKeyPressed(Sketch& sketch, guint keyval, guint keycode, Gdk::ModifierType state) override
+  {
+    if (keyval == GDK_KEY_Control_L || keyval == GDK_KEY_Control_R) {
+      const Sketch::Handle& handle = sketch.mHandles[sketch.mDragIndex];
+      const Model::Node& node = sketch.mModel->nodes()[handle.mNodeIndex];
+
+      Controller::Node controller = sketch.mController->controllerForNode(handle.mNodeIndex);
+
+      switch (node.type()) {
+        case NodeType::Symmetric:
+          controller.setType(NodeType::Smooth);
+          break;
+        case NodeType::Smooth:
+          controller.setType(NodeType::Sharp);
+          break;
+        case NodeType::Sharp:
+          controller.setType(NodeType::Symmetric);
+          break;
+      }
+
+      sketch.queue_draw();
+
+      return true;
+    }
+
+    return false;
+  }
+
   void onCancel(Sketch& sketch) override
   {
     sketch.mUndoManager->cancelGroup();
-    sketch.onUndoChanged();
+    sketch.refreshHandles();
   }
-
-private:
-  Controller::Node::SetPositionMode mSetPositionMode;
 };
 
 SketchModePlace SketchModePlace::sInstance;
@@ -102,7 +170,11 @@ public:
     const std::vector<Sketch::Handle>& handles = sketch.mHandles;
 
     for (int i = 0; i < handles.size(); ++i) {
-      drawHandle(context, HandleSize, sketch.handlePosition(handles[i]), i == sketch.mHoverIndex);
+      const Sketch::Handle& handle = handles[i];
+      const Model::Node& node = sketch.mModel->nodes()[handle.mNodeIndex];
+      bool hover = (i == sketch.mHoverIndex);
+
+      drawHandle(context, handleStyle(node.type(), handle.mType), sketch.handlePosition(handle), hover);
     }
   }
 
@@ -133,11 +205,6 @@ class SketchModeAdd : public Sketch::Mode
 public:
   static SketchModeAdd sInstance;
 
-  SketchModeAdd()
-    : mAdjustHandlesMode(Controller::Node::SetPositionMode::Symmetrical)
-  {
-  }
-
   void draw(Sketch& sketch, const Cairo::RefPtr<Cairo::Context>& context, int width, int height) override
   {
     const std::vector<Sketch::Handle>& handles = sketch.mHandles;
@@ -145,7 +212,7 @@ public:
     for (int i = 0; i < handles.size(); ++i) {
       if ((handles[i].mNodeIndex == 0 && handles[i].mType == Controller::Node::ControlA)
           || (handles[i].mNodeIndex == sketch.mModel->nodes().size() - 1 && handles[i].mType == Controller::Node::ControlB)) {
-        drawAddHandle(context, HandleSize, sketch.handlePosition(handles[i]), i == sketch.mHoverIndex);
+        drawAddHandle(context, 10, sketch.handlePosition(handles[i]), i == sketch.mHoverIndex);
       }
     }
   }
@@ -193,7 +260,8 @@ private:
 
     sketch.mUndoManager->beginGroup();
 
-    sketch.addNode(addIndex, sketch.handlePosition(handle), { 0, 0 }, { 0, 0 });
+    sketch.mController->addSymmetricNode(addIndex, sketch.handlePosition(handle), { 0, 0 });
+    sketch.addHandles(addIndex);
 
     sketch.mDragIndex = sketch.findHandleForNode(addIndex, Controller::Node::Position);
     sketch.pushMode(&mSetPositionMode);
@@ -209,6 +277,8 @@ Sketch::Sketch(Controller::UndoManager *undoManager, Context& context)
   : mUndoManager(undoManager)
   , mHoverIndex(-1)
 {
+  set_focusable(true);
+
   set_draw_func(sigc::mem_fun(*this, &Sketch::onDraw));
 
   context.addAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::activateAddMode));
@@ -229,13 +299,19 @@ Sketch::Sketch(Controller::UndoManager *undoManager, Context& context)
   motionController->signal_motion().connect(sigc::mem_fun(*this, &Sketch::onPointerMotion));
   add_controller(motionController);
 
+  auto keyController = Gtk::EventControllerKey::create();
+  keyController->signal_key_pressed().connect(sigc::mem_fun(*this, &Sketch::onKeyPressed), false);
+  add_controller(keyController);
+
   mModel = new Model::Sketch;
   mController = new Controller::Sketch(undoManager, mModel);
 
-  undoManager->signalChanged().connect(sigc::mem_fun(*this, &Sketch::onUndoChanged));
+  undoManager->signalChanged().connect(sigc::mem_fun(*this, &Sketch::refreshHandles));
 
-  addNode(0, { 30, 20 }, { -10, -10 }, { 10, 10 });
-  addNode(1, { 60, 30 }, { -10, -10 }, { 10, 10 });
+  mController->addSymmetricNode(0, { 30, 20 }, { -10, -10 });
+  mController->addSymmetricNode(1, { 60, 30 }, { -10, -10 });
+
+  refreshHandles();
 }
 
 void Sketch::onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width, int height)
@@ -306,7 +382,16 @@ void Sketch::onPointerMotion(double x, double y)
   }
 }
 
-void Sketch::onUndoChanged()
+bool Sketch::onKeyPressed(guint keyval, guint keycode, Gdk::ModifierType state)
+{
+  if (!mModeStack.empty()) {
+    return mModeStack.front()->onKeyPressed(*this, keyval, keycode, state);
+  }
+
+  return false;
+}
+
+void Sketch::refreshHandles()
 {
   mHandles.clear();
 
@@ -342,12 +427,6 @@ void Sketch::onCancel(const Glib::VariantBase&)
 
     queue_draw();
   }
-}
-
-void Sketch::addNode(int index, const Point& position, const Vector& controlA, const Vector& controlB)
-{
-  mController->addNode(index, position, controlA, controlB);
-  addHandles(index);
 }
 
 void Sketch::addHandles(int nodeIndex)
@@ -389,9 +468,9 @@ Point Sketch::handlePosition(const Handle& handle) const
   return mController->controllerForNode(handle.mNodeIndex).handlePosition(handle.mType);
 }
 
-void Sketch::setHandlePosition(const Handle& handle, const Point& position, Controller::Node::SetPositionMode mode)
+void Sketch::setHandlePosition(const Handle& handle, const Point& position)
 {
-  mController->controllerForNode(handle.mNodeIndex).setHandlePosition(handle.mType, position, mode);
+  mController->controllerForNode(handle.mNodeIndex).setHandlePosition(handle.mType, position);
 }
 
 void Sketch::pushMode(Mode* mode)
