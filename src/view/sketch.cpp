@@ -177,6 +177,7 @@ public:
   void onCancel(Sketch& sketch) override
   {
     sketch.mUndoManager->cancelGroup();
+    sketch.mDragIndex = -1;
     sketch.refreshHandles();
   }
 
@@ -256,6 +257,7 @@ public:
   {
     if (child == &SketchModePlace::sInstance) {
       sketch.mUndoManager->endGroup();
+      sketch.mDragIndex = -1;
     }
   }
 };
@@ -272,9 +274,20 @@ public:
     const std::vector<Sketch::Handle>& handles = sketch.mHandles;
 
     for (int i = 0; i < handles.size(); ++i) {
-      if ((handles[i].mNodeIndex == 0 && handles[i].mType == Controller::Node::ControlA)
-          || (handles[i].mNodeIndex == sketch.mModel->nodes().size() - 1 && handles[i].mType == Controller::Node::ControlB)) {
-        drawAddHandle(context, 10, sketch.handlePosition(handles[i]), i == sketch.mHoverIndex);
+      const Sketch::Handle& handle = handles[i];
+
+      if ((handle.mNodeIndex == 0 && handle.mType == Controller::Node::ControlA)
+          || (handle.mNodeIndex == sketch.mModel->nodes().size() - 1 && handle.mType == Controller::Node::ControlB)) {
+        drawAddHandle(context, 10, sketch.handlePosition(handle), i == sketch.mHoverIndex);
+      }
+    }
+
+    if (sketch.mDragIndex >= 0) {
+      const Sketch::Handle& handle = handles[sketch.mDragIndex];
+
+      if (handle.mType != HandleType::Position) {
+        const Model::Node& node = sketch.mModel->nodes()[handle.mNodeIndex];
+        drawHandle(context, handleStyle(node.type(), HandleType::Position), node.position(), true);
       }
     }
   }
