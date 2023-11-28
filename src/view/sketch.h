@@ -65,6 +65,7 @@ private:
     virtual void onChildPopped(Sketch& sketch, Mode* child) { }
   };
 
+  Mode* activeMode() const;
   void pushMode(Mode* mode);
   void popMode(Mode* mode);
   void cancelModeStack();
@@ -76,7 +77,6 @@ private:
   std::vector<Handle> mHandles;
 
   int mHoverIndex;
-  int mDragIndex;
 };
 
 }

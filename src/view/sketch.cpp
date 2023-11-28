@@ -106,6 +106,12 @@ public:
     : mConstrainDirection(false)
   { }
 
+  int dragIndex() const { return mDragIndex; }
+  void setDragIndex(int index)
+  {
+    mDragIndex = index;
+  }
+
   void begin(Sketch& sketch) override
   {
     sketch.set_cursor("none");
@@ -119,8 +125,8 @@ public:
 
   void draw(Sketch& sketch, const Cairo::RefPtr<Cairo::Context>& context, int width, int height) override
   {
-    if (mConstrainDirection && sketch.mDragIndex >= 0) {
-      const Sketch::Handle& handle = sketch.mHandles[sketch.mDragIndex];
+    if (mConstrainDirection && mDragIndex >= 0) {
+      const Sketch::Handle& handle = sketch.mHandles[mDragIndex];
 
       if (handle.mType != HandleType::Position) {
         const Model::Node& node = sketch.mModel->nodes()[handle.mNodeIndex];
@@ -146,8 +152,8 @@ public:
 
   bool onPointerMotion(Sketch& sketch, double x, double y) override
   {
-    if (sketch.mDragIndex >= 0) {
-      setHandlePosition(sketch, sketch.mHandles[sketch.mDragIndex], x, y);
+    if (mDragIndex >= 0) {
+      setHandlePosition(sketch, sketch.mHandles[mDragIndex], x, y);
     }
 
     return true;
@@ -156,7 +162,7 @@ public:
   bool onKeyPressed(Sketch& sketch, guint keyval, guint keycode, Gdk::ModifierType state) override
   {
     if (keyval == GDK_KEY_Control_L || keyval == GDK_KEY_Control_R) {
-      const Sketch::Handle& handle = sketch.mHandles[sketch.mDragIndex];
+      const Sketch::Handle& handle = sketch.mHandles[mDragIndex];
       const Model::Node& node = sketch.mModel->nodes()[handle.mNodeIndex];
 
       Controller::Node controller = sketch.mController->controllerForNode(handle.mNodeIndex);
@@ -183,8 +189,8 @@ public:
     } else if (keyval == GDK_KEY_Shift_L || keyval == GDK_KEY_Shift_R) {
       mConstrainDirection = !mConstrainDirection;
 
-      if (mConstrainDirection && sketch.mDragIndex >= 0) {
-        const Sketch::Handle& handle = sketch.mHandles[sketch.mDragIndex];
+      if (mConstrainDirection && mDragIndex >= 0) {
+        const Sketch::Handle& handle = sketch.mHandles[mDragIndex];
         Point position = sketch.handlePosition(handle);
 
         setHandlePosition(sketch, handle, position.x, position.y);
@@ -199,15 +205,14 @@ public:
   void onCancel(Sketch& sketch) override
   {
     sketch.mUndoManager->cancelGroup();
-    sketch.mDragIndex = -1;
     sketch.refreshHandles();
   }
 
 private:
   void setDirectionConstraint(Sketch& sketch)
   {
-    if (sketch.mDragIndex >= 0) {
-      const Sketch::Handle& handle = sketch.mHandles[sketch.mDragIndex];
+    if (mDragIndex >= 0) {
+      const Sketch::Handle& handle = sketch.mHandles[mDragIndex];
 
       if (handle.mType != HandleType::Position) {
         const Model::Node& node = sketch.mModel->nodes()[handle.mNodeIndex];
@@ -241,6 +246,7 @@ private:
 
   Vector mDirectionConstraint;
   bool mConstrainDirection;
+  int mDragIndex;
 };
 
 SketchModePlace SketchModePlace::sInstance;
@@ -271,17 +277,18 @@ public:
 
     sketch.mUndoManager->beginGroup();
 
-    sketch.mDragIndex = sketch.mHoverIndex;
-    sketch.pushMode(&SketchModePlace::sInstance);
+    mPlaceMode.setDragIndex(sketch.mHoverIndex);
+    sketch.pushMode(&mPlaceMode);
   }
 
   void onChildPopped(Sketch& sketch, Sketch::Mode* child) override
   {
-    if (child == &SketchModePlace::sInstance) {
+    if (child == &mPlaceMode) {
       sketch.mUndoManager->endGroup();
-      sketch.mDragIndex = -1;
     }
   }
+
+  SketchModePlace mPlaceMode;
 };
 
 SketchModeMove SketchModeMove::sInstance;
@@ -304,13 +311,10 @@ public:
       }
     }
 
-    if (sketch.mDragIndex >= 0) {
-      const Sketch::Handle& handle = handles[sketch.mDragIndex];
-
-      if (handle.mType != HandleType::Position) {
-        const Model::Node& node = sketch.mModel->nodes()[handle.mNodeIndex];
-        drawHandle(context, handleStyle(node.type(), HandleType::Position), node.position(), true);
-      }
+    if (sketch.activeMode() == &mAdjustHandlesMode) {
+      const Sketch::Handle& handle = handles[mAdjustHandlesMode.dragIndex()];
+      const Model::Node& node = sketch.mModel->nodes()[handle.mNodeIndex];
+      drawHandle(context, handleStyle(node.type(), HandleType::Position), node.position(), true);
     }
   }
 
@@ -324,19 +328,19 @@ public:
   void onChildPopped(Sketch& sketch, Sketch::Mode* child) override
   {
     if (child == &mSetPositionMode) {
-      const Sketch::Handle& handle = sketch.mHandles[sketch.mDragIndex];
+      const Sketch::Handle& handle = sketch.mHandles[mSetPositionMode.dragIndex()];
 
       if (handle.mNodeIndex == 0) {
-        sketch.mDragIndex = sketch.findHandleForNode(handle.mNodeIndex, Controller::Node::ControlA);
+        mAdjustHandlesMode.setDragIndex(sketch.findHandleForNode(handle.mNodeIndex, HandleType::ControlA));
       } else if (handle.mNodeIndex == sketch.mModel->nodes().size() - 1) {
-        sketch.mDragIndex = sketch.findHandleForNode(handle.mNodeIndex, Controller::Node::ControlB);
+        mAdjustHandlesMode.setDragIndex(sketch.findHandleForNode(handle.mNodeIndex, HandleType::ControlB));
       }
 
       sketch.pushMode(&mAdjustHandlesMode);
     } else if (child == &mAdjustHandlesMode) {
       sketch.mUndoManager->endGroup();
 
-      addNode(sketch, sketch.mDragIndex);
+      addNode(sketch, mAdjustHandlesMode.dragIndex());
     }
   }
 
@@ -360,7 +364,7 @@ private:
     sketch.mController->addSymmetricNode(addIndex, sketch.handlePosition(handle), { 0, 0 });
     sketch.addHandles(addIndex);
 
-    sketch.mDragIndex = sketch.findHandleForNode(addIndex, Controller::Node::Position);
+    mSetPositionMode.setDragIndex(sketch.findHandleForNode(addIndex, Controller::Node::Position));
     sketch.pushMode(&mSetPositionMode);
   };
 
@@ -373,7 +377,6 @@ SketchModeAdd SketchModeAdd::sInstance;
 Sketch::Sketch(Controller::UndoManager *undoManager, Context& context)
   : mUndoManager(undoManager)
   , mHoverIndex(-1)
-  , mDragIndex(-1)
 {
   set_focusable(true);
 
@@ -570,6 +573,15 @@ Point Sketch::handlePosition(const Handle& handle) const
 void Sketch::setHandlePosition(const Handle& handle, const Point& position)
 {
   mController->controllerForNode(handle.mNodeIndex).setHandlePosition(handle.mType, position);
+}
+
+Sketch::Mode* Sketch::activeMode() const
+{
+  if (!mModeStack.empty()) {
+    return mModeStack.front();
+  } else {
+    return nullptr;
+  }
 }
 
 void Sketch::pushMode(Mode* mode)
