@@ -117,6 +117,28 @@ public:
     sketch.set_cursor("");
   }
 
+  void draw(Sketch& sketch, const Cairo::RefPtr<Cairo::Context>& context, int width, int height) override
+  {
+    if (mConstrainDirection && sketch.mDragIndex >= 0) {
+      const Sketch::Handle& handle = sketch.mHandles[sketch.mDragIndex];
+
+      if (handle.mType != HandleType::Position) {
+        const Model::Node& node = sketch.mModel->nodes()[handle.mNodeIndex];
+
+        Point start = node.position();
+        Point end = start + mDirectionConstraint * std::max(width, height);
+
+        context->move_to(start.x, start.y);
+        context->line_to(end.x, end.y);
+
+        context->set_line_width(1);
+        context->set_source_rgb(1, 0, 1);
+
+        context->stroke();
+      }
+    }
+  }
+
   void onPointerPressed(Sketch& sketch, int count, double x, double y) override
   {
     sketch.popMode(this);
