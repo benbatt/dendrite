@@ -7,6 +7,11 @@ double Vector::length() const
   return std::sqrt(x * x + y * y);
 }
 
+double Vector::dot(const Vector& other) const
+{
+  return x * other.x + y * other.y;
+}
+
 Vector Vector::normalised() const
 {
   double length = this->length();

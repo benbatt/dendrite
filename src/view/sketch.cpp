@@ -102,8 +102,13 @@ class SketchModePlace : public Sketch::Mode
 public:
   static SketchModePlace sInstance;
 
-  void draw(Sketch& sketch, const Cairo::RefPtr<Cairo::Context>& context, int width, int height) override
+  SketchModePlace()
+    : mConstrainDirection(false)
+  { }
+
+  void begin(Sketch& sketch) override
   {
+    setDirectionConstraint(sketch);
   }
 
   void onPointerPressed(Sketch& sketch, int count, double x, double y) override
@@ -113,11 +118,8 @@ public:
 
   bool onPointerMotion(Sketch& sketch, double x, double y) override
   {
-    int dragIndex = sketch.mDragIndex;
-
-    if (dragIndex >= 0) {
-      sketch.setHandlePosition(sketch.mHandles[dragIndex], { x, y });
-      sketch.queue_draw();
+    if (sketch.mDragIndex >= 0) {
+      setHandlePosition(sketch, sketch.mHandles[sketch.mDragIndex], x, y);
     }
 
     return true;
@@ -150,6 +152,17 @@ public:
       sketch.queue_draw();
 
       return true;
+    } else if (keyval == GDK_KEY_Shift_L || keyval == GDK_KEY_Shift_R) {
+      mConstrainDirection = !mConstrainDirection;
+
+      if (mConstrainDirection && sketch.mDragIndex >= 0) {
+        const Sketch::Handle& handle = sketch.mHandles[sketch.mDragIndex];
+        Point position = sketch.handlePosition(handle);
+
+        setHandlePosition(sketch, handle, position.x, position.y);
+      }
+
+      return true;
     }
 
     return false;
@@ -160,6 +173,45 @@ public:
     sketch.mUndoManager->cancelGroup();
     sketch.refreshHandles();
   }
+
+private:
+  void setDirectionConstraint(Sketch& sketch)
+  {
+    if (sketch.mDragIndex >= 0) {
+      const Sketch::Handle& handle = sketch.mHandles[sketch.mDragIndex];
+
+      if (handle.mType != HandleType::Position) {
+        const Model::Node& node = sketch.mModel->nodes()[handle.mNodeIndex];
+
+        if (handle.mType == HandleType::ControlA) {
+          mDirectionConstraint = node.controlA().normalised();
+        } else if (handle.mType == HandleType::ControlB) {
+          mDirectionConstraint = node.controlB().normalised();
+        }
+      }
+    }
+  }
+
+  void setHandlePosition(Sketch& sketch, const Sketch::Handle& handle, double x, double y)
+  {
+    Point newPosition{x, y};
+
+    if (mConstrainDirection && handle.mType != HandleType::Position) {
+      const Model::Node& node = sketch.mModel->nodes()[handle.mNodeIndex];
+
+      Vector offset = newPosition - node.position();
+
+      double length = std::max(0.0, offset.dot(mDirectionConstraint));
+
+      newPosition = node.position() + mDirectionConstraint * length;
+    }
+
+    sketch.setHandlePosition(handle, newPosition);
+    sketch.queue_draw();
+  }
+
+  Vector mDirectionConstraint;
+  bool mConstrainDirection;
 };
 
 SketchModePlace SketchModePlace::sInstance;
@@ -280,6 +332,7 @@ SketchModeAdd SketchModeAdd::sInstance;
 Sketch::Sketch(Controller::UndoManager *undoManager, Context& context)
   : mUndoManager(undoManager)
   , mHoverIndex(-1)
+  , mDragIndex(-1)
 {
   set_focusable(true);
 
@@ -427,6 +480,7 @@ void Sketch::onCancel(const Glib::VariantBase&)
 {
   if (!mModeStack.empty()) {
     mModeStack.front()->onCancel(*this);
+    mModeStack.front()->end(*this);
     mModeStack.pop_front();
 
     queue_draw();
@@ -480,6 +534,7 @@ void Sketch::setHandlePosition(const Handle& handle, const Point& position)
 void Sketch::pushMode(Mode* mode)
 {
   mModeStack.push_front(mode);
+  mode->begin(*this);
   queue_draw();
 }
 
@@ -487,6 +542,8 @@ void Sketch::popMode(Mode* mode)
 {
   if (std::find(mModeStack.begin(), mModeStack.end(), mode) != mModeStack.end()) {
     while (!mModeStack.empty()) {
+      mModeStack.front()->end(*this);
+
       Mode* oldFront = mModeStack.front();
       mModeStack.pop_front();
 
@@ -507,6 +564,7 @@ void Sketch::cancelModeStack()
 {
   while (!mModeStack.empty()) {
     mModeStack.front()->onCancel(*this);
+    mModeStack.front()->end(*this);
     mModeStack.pop_front();
   }
 

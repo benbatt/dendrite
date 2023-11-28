@@ -54,6 +54,8 @@ private:
   class Mode
   {
   public:
+    virtual void begin(Sketch& sketch) { };
+    virtual void end(Sketch& sketch) { };
     virtual void draw(Sketch& sketch, const Cairo::RefPtr<Cairo::Context>& context, int width, int height) { }
     virtual void onPointerPressed(Sketch& sketch, int count, double x, double y) { }
     virtual void onPointerReleased(Sketch& sketch, int count, double x, double y) { }
