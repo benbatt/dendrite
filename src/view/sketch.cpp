@@ -108,7 +108,13 @@ public:
 
   void begin(Sketch& sketch) override
   {
+    sketch.set_cursor("none");
     setDirectionConstraint(sketch);
+  }
+
+  void end(Sketch& sketch) override
+  {
+    sketch.set_cursor("");
   }
 
   void onPointerPressed(Sketch& sketch, int count, double x, double y) override
