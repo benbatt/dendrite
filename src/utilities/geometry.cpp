@@ -33,6 +33,18 @@ Vector Vector::operator*(double scale) const
   return { x * scale, y * scale };
 }
 
+const Vector Vector::zero{0, 0};
+
+bool operator==(const Vector& a, const Vector& b)
+{
+  return a.x == b.x && a.y == b.y;
+}
+
+bool operator!=(const Vector& a, const Vector& b)
+{
+  return !(a == b);
+}
+
 Point Point::operator+(const Vector& v) const
 {
   return { x + v.x, y + v.y };

@@ -135,7 +135,11 @@ public:
         case Node::Type::Symmetric:
           return -control;
         case Node::Type::Smooth:
-          return -control.normalised() * currentOpposingControl.length();
+          if (control != Vector::zero) {
+            return -control.normalised() * currentOpposingControl.length();
+          } else {
+            return currentOpposingControl;
+          }
         case Node::Type::Sharp:
           return currentOpposingControl;
         default:

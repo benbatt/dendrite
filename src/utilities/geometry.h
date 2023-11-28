@@ -8,9 +8,14 @@ struct Vector
   Vector operator-() const;
   Vector operator*(double scale) const;
 
+  static const Vector zero;
+
   double x;
   double y;
 };
+
+bool operator==(const Vector& a, const Vector& b);
+bool operator!=(const Vector& a, const Vector& b);
 
 struct Point
 {
