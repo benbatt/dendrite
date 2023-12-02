@@ -1,6 +1,7 @@
 #include "controller/sketch.h"
 
 #include "controller/undo.h"
+#include "model/controlpoint.h"
 
 namespace Controller
 {
@@ -11,84 +12,20 @@ Sketch::Sketch(UndoManager *undoManager, Model::Sketch* model)
 {
 }
 
-using NodeType = Model::Node::Type;
-
-class AddNodeCommand : public UndoCommand
-{
-public:
-  enum class Position
-  {
-    Start,
-    End,
-  };
-
-  AddNodeCommand(Model::Sketch* model, int index, Point position, Vector controlA, Vector controlB,
-      NodeType type)
-    : mModel(model)
-    , mAddPosition()
-    , mPosition(position)
-    , mControlA(controlA)
-    , mControlB(controlB)
-    , mType(type)
-  {
-    if (index == 0) {
-      mAddPosition = Position::Start;
-    } else if (index == mModel->nodes().size()) {
-      mAddPosition = Position::End;
-    }
-  }
-
-  void redo() override
-  { 
-    Model::Sketch::NodeList& nodes = Sketch::nodes(mModel);
-
-    if (mAddPosition == Position::Start) {
-      nodes.insert(nodes.begin(), Model::Node(mPosition, mControlA, mControlB, mType));
-    } else if (mAddPosition == Position::End) {
-      nodes.push_back(Model::Node(mPosition, mControlA, mControlB, mType));
-    }
-  }
-
-  void undo() override
-  { 
-    Model::Sketch::NodeList& nodes = Sketch::nodes(mModel);
-
-    if (mAddPosition == Position::Start) {
-      nodes.erase(nodes.begin());
-    } else if (mAddPosition == Position::End) {
-      nodes.pop_back();
-    }
-  }
-
-  std::string description() override
-  {
-    return "Add node";
-  }
-
-private:
-  Model::Sketch* mModel;
-  Position mAddPosition;
-  Point mPosition;
-  Vector mControlA;
-  Vector mControlB;
-  NodeType mType;
-};
-
-void Sketch::addSymmetricNode(int index, const Point& position, const Vector& controlA)
+void Sketch::addPath()
 {
   mUndoManager->pushCommand(
-    new AddNodeCommand(mModel, index, position, controlA, -controlA, NodeType::Symmetric));
+      [this]() { mModel->mPaths.push_back(new Model::Path); },
+      [this]() {
+        delete mModel->mPaths.back();
+        mModel->mPaths.pop_back();
+      },
+      "Add path");
 }
 
-void Sketch::addSmoothNode(int index, const Point& position, const Vector& controlA, double lengthB)
+Path Sketch::controllerForPath(int index)
 {
-  mUndoManager->pushCommand(
-      new AddNodeCommand(mModel, index, position, controlA, -controlA.normalised() * lengthB, NodeType::Smooth));
-}
-
-void Sketch::addSharpNode(int index, const Point& position)
-{
-  mUndoManager->pushCommand(new AddNodeCommand(mModel, index, position, { 0, 0 }, { 0, 0 }, NodeType::Sharp));
+  return Path(mUndoManager, this, index);
 }
 
 Node Sketch::controllerForNode(int index)
@@ -96,9 +33,60 @@ Node Sketch::controllerForNode(int index)
   return Node(mUndoManager, this, index);
 }
 
+Node Sketch::controllerForNode(const Model::Node* node)
+{
+  const Model::Sketch::NodeList& nodes = mModel->nodes();
+  int index = std::distance(nodes.begin(), std::find(nodes.begin(), nodes.end(), node));
+  return controllerForNode(index);
+}
+
+ControlPoint Sketch::controllerForControlPoint(int index)
+{
+  return ControlPoint(mUndoManager, this, index);
+}
+
 Model::Node* Sketch::getNode(int index)
 {
-  return &mModel->mNodes[index];
+  return mModel->mNodes[index];
+}
+
+Model::ControlPoint* Sketch::getControlPoint(int index)
+{
+  return mModel->mControlPoints[index];
+}
+
+Model::Node* Sketch::createNode(const Point& position, Model::Node::Type type)
+{
+  Model::Node* node = new Model::Node(position, type);
+  mModel->mNodes.push_back(node);
+
+  return node;
+}
+
+void Sketch::destroyNode(Model::Node* node)
+{
+  mModel->mNodes.erase(std::remove(mModel->mNodes.begin(), mModel->mNodes.end(), node));
+  delete node;
+}
+
+Model::ControlPoint* Sketch::createControlPoint(Model::Node* node, const Point& position)
+{
+  Model::ControlPoint* controlPoint = new Model::ControlPoint(node, position);
+  Node::controlPoints(node).push_back(controlPoint);
+  mModel->mControlPoints.push_back(controlPoint);
+
+  return controlPoint;
+}
+
+void Sketch::destroyControlPoint(Model::ControlPoint* controlPoint)
+{
+  mModel->mControlPoints.erase(std::remove(mModel->mControlPoints.begin(), mModel->mControlPoints.end(), controlPoint));
+  delete controlPoint;
+}
+
+Model::Path* Sketch::getPath(int index)
+{
+  return mModel->mPaths[index];
 }
 
 Model::Sketch::NodeList& Sketch::nodes(Model::Sketch* sketch)

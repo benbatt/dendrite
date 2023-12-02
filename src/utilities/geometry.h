@@ -20,6 +20,7 @@ bool operator!=(const Vector& a, const Vector& b);
 struct Point
 {
   Point operator+(const Vector& v) const;
+  Point operator-(const Vector& v) const;
   Vector operator-(const Point& p) const;
 
   double x;

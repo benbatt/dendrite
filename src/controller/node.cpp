@@ -1,6 +1,8 @@
 #include "controller/node.h"
 
+#include "controller/controlpoint.h"
 #include "controller/undo.h"
+#include "model/controlpoint.h"
 #include "model/node.h"
 
 #include <cassert>
@@ -8,37 +10,18 @@
 namespace Controller
 {
 
-Node::Node(UndoManager* undoManager, SketchAccessor* sketchAccessor, int nodeIndex)
+Node::Node(UndoManager* undoManager, Accessor* sketchAccessor, int nodeIndex)
   : mUndoManager(undoManager)
-  , mSketchAccessor(sketchAccessor)
+  , mAccessor(sketchAccessor)
   , mNodeIndex(nodeIndex)
 {
-}
-
-Point Node::handlePosition(HandleType type) const
-{
-  const Model::Node* model = mSketchAccessor->getNode(mNodeIndex);
-
-  switch (type) {
-    case Position:
-      return model->position();
-      break;
-    case ControlA:
-      return model->position() + model->controlA();
-      break;
-    case ControlB:
-      return model->position() + model->controlB();
-      break;
-    default:
-      return { 0, 0 };
-  }
 }
 
 class SetNodeTypeCommand : public UndoCommand
 {
 public:
-  SetNodeTypeCommand(Node::SketchAccessor* sketchAccessor, int nodeIndex, Node::Type type)
-    : mSketchAccessor(sketchAccessor)
+  SetNodeTypeCommand(Node::Accessor* sketchAccessor, int nodeIndex, Node::Type type)
+    : mAccessor(sketchAccessor)
     , mNodeIndex(nodeIndex)
     , mType(type)
     , mOldType(sketchAccessor->getNode(nodeIndex)->type())
@@ -47,12 +30,12 @@ public:
 
   void redo() override
   { 
-    Node::type(mSketchAccessor->getNode(mNodeIndex)) = mType;
+    Node::type(mAccessor->getNode(mNodeIndex)) = mType;
   }
 
   void undo() override
   { 
-    Node::type(mSketchAccessor->getNode(mNodeIndex)) = mOldType;
+    Node::type(mAccessor->getNode(mNodeIndex)) = mOldType;
   }
 
   std::string description() override
@@ -61,7 +44,7 @@ public:
   }
 
 private:
-  Node::SketchAccessor* mSketchAccessor;
+  Node::Accessor* mAccessor;
   int mNodeIndex;
   Node::Type mType;
   Node::Type mOldType;
@@ -69,28 +52,57 @@ private:
 
 void Node::setType(Type type)
 {
-  mUndoManager->pushCommand(new SetNodeTypeCommand(mSketchAccessor, mNodeIndex, type));
+  mUndoManager->pushCommand(new SetNodeTypeCommand(mAccessor, mNodeIndex, type));
 }
 
 class SetNodePositionCommand : public UndoManager::AutoIDCommand<SetNodePositionCommand>
 {
 public:
-  SetNodePositionCommand(Node::SketchAccessor* sketchAccessor, int nodeIndex, const Point& position)
-    : mSketchAccessor(sketchAccessor)
+  SetNodePositionCommand(Node::Accessor* sketchAccessor, int nodeIndex, const Point& position)
+    : mAccessor(sketchAccessor)
     , mNodeIndex(nodeIndex)
     , mPosition(position)
     , mOldPosition(sketchAccessor->getNode(nodeIndex)->position())
   {
+    const Model::Node* node = sketchAccessor->getNode(nodeIndex);
+
+    mControlPoints.reserve(node->controlPoints().size());
+    mOldControlPoints.reserve(node->controlPoints().size());
+
+    const Vector offset = mPosition - mOldPosition;
+
+    for (int i = 0; i < node->controlPoints().size(); ++i) {
+      const Model::ControlPoint* controlPoint = node->controlPoints()[i];
+
+      mControlPoints.push_back(controlPoint->position() + offset);
+      mOldControlPoints.push_back(controlPoint->position());
+    }
   }
 
   void redo() override
   { 
-    Node::position(mSketchAccessor->getNode(mNodeIndex)) = mPosition;
+    Model::Node* node = mAccessor->getNode(mNodeIndex);
+
+    Node::position(node) = mPosition;
+
+    const Model::Node::ControlPointList& controlPoints = node->controlPoints();
+
+    for (int i = 0; i < controlPoints.size(); ++i) {
+      ControlPoint::position(controlPoints[i]) = mControlPoints[i];
+    }
   }
 
   void undo() override
   { 
-    Node::position(mSketchAccessor->getNode(mNodeIndex)) = mOldPosition;
+    Model::Node* node = mAccessor->getNode(mNodeIndex);
+
+    Node::position(node) = mOldPosition;
+
+    const Model::Node::ControlPointList& controlPoints = node->controlPoints();
+
+    for (int i = 0; i < controlPoints.size(); ++i) {
+      ControlPoint::position(controlPoints[i]) = mOldControlPoints[i];
+    }
   }
 
   std::string description() override
@@ -102,8 +114,9 @@ public:
   {
     SetNodePositionCommand* command = static_cast<SetNodePositionCommand*>(other);
 
-    if (command->mSketchAccessor == mSketchAccessor && command->mNodeIndex == mNodeIndex) {
+    if (command->mAccessor == mAccessor && command->mNodeIndex == mNodeIndex) {
       mPosition = command->mPosition;
+      mControlPoints = std::move(command->mControlPoints);
       return true;
     } else {
       return false;
@@ -111,114 +124,17 @@ public:
   }
 
 private:
-  Node::SketchAccessor* mSketchAccessor;
+  Node::Accessor* mAccessor;
   int mNodeIndex;
   Point mPosition;
   Point mOldPosition;
+  std::vector<Point> mControlPoints;
+  std::vector<Point> mOldControlPoints;
 };
 
-class SetNodeControlPointCommand : public UndoManager::AutoIDCommand<SetNodeControlPointCommand>
+void Node::setPosition(const Point& position)
 {
-public:
-  SetNodeControlPointCommand(Node::SketchAccessor* sketchAccessor, int nodeIndex, const Point& position,
-      Node::HandleType handleType)
-    : mSketchAccessor(sketchAccessor)
-    , mNodeIndex(nodeIndex)
-    , mHandleType(handleType)
-    , mOldControlA(sketchAccessor->getNode(nodeIndex)->controlA())
-    , mOldControlB(sketchAccessor->getNode(nodeIndex)->controlB())
-  {
-    Model::Node* model = mSketchAccessor->getNode(mNodeIndex);
-
-    auto opposingControlPoint = [=](const Vector& control, const Vector& currentOpposingControl) {
-      switch (model->type()) {
-        case Node::Type::Symmetric:
-          return -control;
-        case Node::Type::Smooth:
-          if (control != Vector::zero) {
-            return -control.normalised() * currentOpposingControl.length();
-          } else {
-            return currentOpposingControl;
-          }
-        case Node::Type::Sharp:
-          return currentOpposingControl;
-        default:
-          assert(false);
-      }
-    };
-
-    switch (handleType) {
-      case Node::ControlA:
-        mControlA = position - model->position();
-        mControlB = opposingControlPoint(mControlA, model->controlB());
-        break;
-      case Node::ControlB:
-        mControlB = position - model->position();
-        mControlA = opposingControlPoint(mControlB, model->controlA());
-        break;
-      default:
-        assert(false);
-    }
-  }
-
-  void redo() override
-  { 
-    Model::Node* model = mSketchAccessor->getNode(mNodeIndex);
-
-    Node::controlA(model) = mControlA;
-    Node::controlB(model) = mControlB;
-  }
-
-  void undo() override
-  { 
-    Model::Node* model = mSketchAccessor->getNode(mNodeIndex);
-
-    Node::controlA(model) = mOldControlA;
-    Node::controlB(model) = mOldControlB;
-  }
-
-  std::string description() override
-  {
-    return "Move control point";
-  }
-
-  bool mergeWith(UndoCommand* other) override
-  {
-    SetNodeControlPointCommand* command = static_cast<SetNodeControlPointCommand*>(other);
-
-    if (command->mSketchAccessor == mSketchAccessor && command->mNodeIndex == mNodeIndex
-      && command->mHandleType == mHandleType) {
-      mControlA = command->mControlA;
-      mControlB = command->mControlB;
-      return true;
-    } else {
-      return false;
-    }
-  }
-
-private:
-  Node::SketchAccessor* mSketchAccessor;
-  int mNodeIndex;
-  Node::HandleType mHandleType;
-  Vector mControlA;
-  Vector mControlB;
-  Vector mOldControlA;
-  Vector mOldControlB;
-};
-
-void Node::setHandlePosition(HandleType type, const Point& position)
-{
-  switch (type) {
-    case Position:
-      mUndoManager->pushCommand(new SetNodePositionCommand(mSketchAccessor, mNodeIndex, position));
-      break;
-    case ControlA:
-    case ControlB:
-      mUndoManager->pushCommand(new SetNodeControlPointCommand(mSketchAccessor, mNodeIndex, position, type));
-      break;
-    default:
-      assert(false);
-  }
+  mUndoManager->pushCommand(new SetNodePositionCommand(mAccessor, mNodeIndex, position));
 }
 
 Point& Node::position(Model::Node* model)
@@ -226,19 +142,14 @@ Point& Node::position(Model::Node* model)
   return model->mPosition;
 }
 
-Vector& Node::controlA(Model::Node* model)
-{
-  return model->mControlA;
-}
-
-Vector& Node::controlB(Model::Node* model)
-{
-  return model->mControlB;
-}
-
 Node::Type& Node::type(Model::Node* model)
 {
   return model->mType;
+}
+
+Model::Node::ControlPointList& Node::controlPoints(Model::Node* model)
+{
+  return model->mControlPoints;
 }
 
 }

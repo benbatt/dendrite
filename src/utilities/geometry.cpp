@@ -50,6 +50,11 @@ Point Point::operator+(const Vector& v) const
   return { x + v.x, y + v.y };
 }
 
+Point Point::operator-(const Vector& v) const
+{
+  return { x - v.x, y - v.y };
+}
+
 Vector Point::operator-(const Point& p) const
 {
   return { x - p.x, y - p.y };

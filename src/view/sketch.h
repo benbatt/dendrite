@@ -22,6 +22,24 @@ class Sketch : public Gtk::DrawingArea
 public:
   Sketch(Controller::UndoManager* undoManager, Context& context);
 
+  struct Handle
+  {
+    enum Type
+    {
+      Node,
+      ControlPoint,
+    };
+
+    bool refersTo(Type type) const { return mIndex >= 0 && mType == type; }
+
+    operator bool() const { return mIndex >= 0; }
+    bool operator==(const Handle& other) const { return mType == other.mType && mIndex == other.mIndex; }
+    bool operator!=(const Handle& other) const { return !(*this == other); }
+
+    Type mType;
+    int mIndex;
+  };
+
 private:
   friend class SketchModeMove;
   friend class SketchModeAdd;
@@ -38,18 +56,14 @@ private:
   void activateViewMode(const Glib::VariantBase&);
   void onCancel(const Glib::VariantBase&);
 
-  void addHandles(int nodeIndex);
-  int findHandle(double x, double y);
-  int findHandleForNode(int nodeIndex, Controller::Node::HandleType type);
-
-  struct Handle
-  {
-    int mNodeIndex;
-    Controller::Node::HandleType mType;
-  };
+  Handle findHandle(double x, double y);
+  Handle findHandle(const Model::Node* node);
+  Handle findHandle(const Model::ControlPoint* controlPoint);
 
   Point handlePosition(const Handle& handle) const;
   void setHandlePosition(const Handle& handle, const Point& position);
+
+  const Model::Node* nodeForHandle(const Handle& handle);
 
   class Mode
   {
@@ -74,9 +88,8 @@ private:
   Controller::Sketch* mController;
   Controller::UndoManager* mUndoManager;
   std::list<Mode*> mModeStack;
-  std::vector<Handle> mHandles;
 
-  int mHoverIndex;
+  Handle mHoverHandle;
 };
 
 }

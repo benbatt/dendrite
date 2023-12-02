@@ -2,6 +2,8 @@
 
 #include "utilities/geometry.h"
 
+#include <vector>
+
 namespace Controller
 {
   class Node;
@@ -9,6 +11,8 @@ namespace Controller
 
 namespace Model
 {
+
+class ControlPoint;
 
 class Node
 {
@@ -20,25 +24,22 @@ public:
     Sharp,
   };
 
-  Node(const Point& position, const Vector& controlA, const Vector& controlB, Type type)
+  Node(const Point& position, Type type)
     : mPosition(position)
-    , mControlA(controlA)
-    , mControlB(controlB)
     , mType(type)
-  {
-  }
+  {}
+
+  typedef std::vector<ControlPoint*> ControlPointList;
 
   const Point& position() const { return mPosition; }
-  const Vector& controlA() const { return mControlA; }
-  const Vector& controlB() const { return mControlB; }
   Type type() const { return mType; }
+  const ControlPointList& controlPoints() const { return mControlPoints; }
 
 private:
   friend class Controller::Node;
 
+  ControlPointList mControlPoints;
   Point mPosition;
-  Vector mControlA; // relative to mPosition
-  Vector mControlB; // relative to mPosition
   Type mType;
 };
 

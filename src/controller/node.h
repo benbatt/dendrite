@@ -13,40 +13,31 @@ class UndoCommand;
 class Node
 {
 public:
-  class SketchAccessor
+  class Accessor
   {
   public:
     virtual Model::Node* getNode(int index) = 0;
   };
 
-  Node(UndoManager* undoManager, SketchAccessor* sketchAccessor, int nodeIndex);
+  Node(UndoManager* undoManager, Accessor* accessor, int nodeIndex);
 
-  enum HandleType
-  {
-    Position,
-    ControlA,
-    ControlB,
-  };
-
-  Point handlePosition(HandleType type) const;
-  void setHandlePosition(HandleType type, const Point& position);
+  void setPosition(const Point& position);
 
   using Type = Model::Node::Type;
 
   void setType(Type type);
 
 private:
-  friend class SetNodeTypeCommand;
   friend class SetNodePositionCommand;
-  friend class SetNodeControlPointCommand;
+  friend class SetNodeTypeCommand;
+  friend class Sketch;
 
   static Point& position(Model::Node* model);
-  static Vector& controlA(Model::Node* model);
-  static Vector& controlB(Model::Node* model);
   static Type& type(Model::Node* model);
+  static Model::Node::ControlPointList& controlPoints(Model::Node* model);
 
   UndoManager* mUndoManager;
-  SketchAccessor* mSketchAccessor;
+  Accessor* mAccessor;
   int mNodeIndex;
 };
 
