@@ -10,32 +10,32 @@
 namespace Controller
 {
 
-Node::Node(UndoManager* undoManager, Accessor* sketchAccessor, int nodeIndex)
+Node::Node(UndoManager* undoManager, Accessor* sketchAccessor, const ID<Model::Node>& id)
   : mUndoManager(undoManager)
   , mAccessor(sketchAccessor)
-  , mNodeIndex(nodeIndex)
+  , mID(id)
 {
 }
 
 class SetNodeTypeCommand : public UndoCommand
 {
 public:
-  SetNodeTypeCommand(Node::Accessor* sketchAccessor, int nodeIndex, Node::Type type)
+  SetNodeTypeCommand(Node::Accessor* sketchAccessor, const ID<Model::Node>& id, Node::Type type)
     : mAccessor(sketchAccessor)
-    , mNodeIndex(nodeIndex)
+    , mID(id)
     , mType(type)
-    , mOldType(sketchAccessor->getNode(nodeIndex)->type())
+    , mOldType(sketchAccessor->getNode(id)->type())
   {
   }
 
   void redo() override
   { 
-    Node::type(mAccessor->getNode(mNodeIndex)) = mType;
+    Node::type(mAccessor->getNode(mID)) = mType;
   }
 
   void undo() override
   { 
-    Node::type(mAccessor->getNode(mNodeIndex)) = mOldType;
+    Node::type(mAccessor->getNode(mID)) = mOldType;
   }
 
   std::string description() override
@@ -45,26 +45,26 @@ public:
 
 private:
   Node::Accessor* mAccessor;
-  int mNodeIndex;
+  ID<Model::Node> mID;
   Node::Type mType;
   Node::Type mOldType;
 };
 
 void Node::setType(Type type)
 {
-  mUndoManager->pushCommand(new SetNodeTypeCommand(mAccessor, mNodeIndex, type));
+  mUndoManager->pushCommand(new SetNodeTypeCommand(mAccessor, mID, type));
 }
 
 class SetNodePositionCommand : public UndoManager::AutoIDCommand<SetNodePositionCommand>
 {
 public:
-  SetNodePositionCommand(Node::Accessor* sketchAccessor, int nodeIndex, const Point& position)
+  SetNodePositionCommand(Node::Accessor* sketchAccessor, const ID<Model::Node>& id, const Point& position)
     : mAccessor(sketchAccessor)
-    , mNodeIndex(nodeIndex)
+    , mID(id)
     , mPosition(position)
-    , mOldPosition(sketchAccessor->getNode(nodeIndex)->position())
+    , mOldPosition(sketchAccessor->getNode(id)->position())
   {
-    const Model::Node* node = sketchAccessor->getNode(nodeIndex);
+    const Model::Node* node = sketchAccessor->getNode(id);
 
     mControlPoints.reserve(node->controlPoints().size());
     mOldControlPoints.reserve(node->controlPoints().size());
@@ -72,7 +72,7 @@ public:
     const Vector offset = mPosition - mOldPosition;
 
     for (int i = 0; i < node->controlPoints().size(); ++i) {
-      const Model::ControlPoint* controlPoint = node->controlPoints()[i];
+      const Model::ControlPoint* controlPoint = mAccessor->getControlPoint(node->controlPoints()[i]);
 
       mControlPoints.push_back(controlPoint->position() + offset);
       mOldControlPoints.push_back(controlPoint->position());
@@ -81,27 +81,27 @@ public:
 
   void redo() override
   { 
-    Model::Node* node = mAccessor->getNode(mNodeIndex);
+    Model::Node* node = mAccessor->getNode(mID);
 
     Node::position(node) = mPosition;
 
     const Model::Node::ControlPointList& controlPoints = node->controlPoints();
 
     for (int i = 0; i < controlPoints.size(); ++i) {
-      ControlPoint::position(controlPoints[i]) = mControlPoints[i];
+      ControlPoint::position(mAccessor->getControlPoint(controlPoints[i])) = mControlPoints[i];
     }
   }
 
   void undo() override
   { 
-    Model::Node* node = mAccessor->getNode(mNodeIndex);
+    Model::Node* node = mAccessor->getNode(mID);
 
     Node::position(node) = mOldPosition;
 
     const Model::Node::ControlPointList& controlPoints = node->controlPoints();
 
     for (int i = 0; i < controlPoints.size(); ++i) {
-      ControlPoint::position(controlPoints[i]) = mOldControlPoints[i];
+      ControlPoint::position(mAccessor->getControlPoint(controlPoints[i])) = mOldControlPoints[i];
     }
   }
 
@@ -114,7 +114,7 @@ public:
   {
     SetNodePositionCommand* command = static_cast<SetNodePositionCommand*>(other);
 
-    if (command->mAccessor == mAccessor && command->mNodeIndex == mNodeIndex) {
+    if (command->mAccessor == mAccessor && command->mID == mID) {
       mPosition = command->mPosition;
       mControlPoints = std::move(command->mControlPoints);
       return true;
@@ -125,7 +125,7 @@ public:
 
 private:
   Node::Accessor* mAccessor;
-  int mNodeIndex;
+  ID<Model::Node> mID;
   Point mPosition;
   Point mOldPosition;
   std::vector<Point> mControlPoints;
@@ -134,7 +134,7 @@ private:
 
 void Node::setPosition(const Point& position)
 {
-  mUndoManager->pushCommand(new SetNodePositionCommand(mAccessor, mNodeIndex, position));
+  mUndoManager->pushCommand(new SetNodePositionCommand(mAccessor, mID, position));
 }
 
 Point& Node::position(Model::Node* model)

@@ -3,6 +3,8 @@
 #include "controller/undo.h"
 #include "model/controlpoint.h"
 
+#include <cassert>
+
 namespace Controller
 {
 
@@ -14,79 +16,83 @@ Sketch::Sketch(UndoManager *undoManager, Model::Sketch* model)
 
 void Sketch::addPath()
 {
+  ID<Model::Path> id = Path::Accessor::nextID<Model::Path>();
+
   mUndoManager->pushCommand(
-      [this]() { mModel->mPaths.push_back(new Model::Path); },
-      [this]() {
-        delete mModel->mPaths.back();
-        mModel->mPaths.pop_back();
-      },
-      "Add path");
+    [this, id]() { mModel->mPaths[id] = new Model::Path; },
+    [this, id]() {
+      delete mModel->mPaths.at(id);
+      mModel->mPaths.erase(id);
+    },
+    "Add path");
 }
 
-Path Sketch::controllerForPath(int index)
+Path Sketch::controllerForPath(const ID<Model::Path>& id)
 {
-  return Path(mUndoManager, this, index);
+  return Path(mUndoManager, this, id);
 }
 
-Node Sketch::controllerForNode(int index)
+Node Sketch::controllerForNode(const ID<Model::Node>& id)
 {
-  return Node(mUndoManager, this, index);
+  return Node(mUndoManager, this, id);
 }
 
-Node Sketch::controllerForNode(const Model::Node* node)
+ControlPoint Sketch::controllerForControlPoint(const ID<Model::ControlPoint>& id)
 {
-  const Model::Sketch::NodeList& nodes = mModel->nodes();
-  int index = std::distance(nodes.begin(), std::find(nodes.begin(), nodes.end(), node));
-  return controllerForNode(index);
+  return ControlPoint(mUndoManager, this, id);
 }
 
-ControlPoint Sketch::controllerForControlPoint(int index)
+Model::Node* Sketch::getNode(const ID<Model::Node>& id)
 {
-  return ControlPoint(mUndoManager, this, index);
+  return mModel->node(id);
 }
 
-Model::Node* Sketch::getNode(int index)
+Model::ControlPoint* Sketch::getControlPoint(const ID<Model::ControlPoint>& id)
 {
-  return mModel->mNodes[index];
+  return mModel->controlPoint(id);
 }
 
-Model::ControlPoint* Sketch::getControlPoint(int index)
+IDValue Sketch::nextID()
 {
-  return mModel->mControlPoints[index];
+  IDValue value = mModel->mNextID;
+  ++mModel->mNextID;
+
+  return value;
 }
 
-Model::Node* Sketch::createNode(const Point& position, Model::Node::Type type)
+void Sketch::createNode(const ID<Model::Node>& id, const Point& position, Model::Node::Type type)
 {
+  assert(mModel->mNodes.find(id) == mModel->mNodes.end());
+
   Model::Node* node = new Model::Node(position, type);
-  mModel->mNodes.push_back(node);
-
-  return node;
+  mModel->mNodes[id] = node;
 }
 
-void Sketch::destroyNode(Model::Node* node)
+void Sketch::destroyNode(const ID<Model::Node>& id)
 {
-  mModel->mNodes.erase(std::remove(mModel->mNodes.begin(), mModel->mNodes.end(), node));
-  delete node;
+  delete mModel->node(id);
+  mModel->mNodes.erase(id);
 }
 
-Model::ControlPoint* Sketch::createControlPoint(Model::Node* node, const Point& position)
+void Sketch::createControlPoint(const ID<Model::ControlPoint>& id, const ID<Model::Node>& nodeID, const Point& position)
 {
-  Model::ControlPoint* controlPoint = new Model::ControlPoint(node, position);
-  Node::controlPoints(node).push_back(controlPoint);
-  mModel->mControlPoints.push_back(controlPoint);
+  assert(mModel->mControlPoints.find(id) == mModel->mControlPoints.end());
 
-  return controlPoint;
+  Model::ControlPoint* controlPoint = new Model::ControlPoint(nodeID, position);
+
+  Node::controlPoints(mModel->node(nodeID)).push_back(id);
+  mModel->mControlPoints[id] = controlPoint;
 }
 
-void Sketch::destroyControlPoint(Model::ControlPoint* controlPoint)
+void Sketch::destroyControlPoint(const ID<Model::ControlPoint>& id)
 {
-  mModel->mControlPoints.erase(std::remove(mModel->mControlPoints.begin(), mModel->mControlPoints.end(), controlPoint));
-  delete controlPoint;
+  delete mModel->controlPoint(id);
+  mModel->mControlPoints.erase(id);
 }
 
-Model::Path* Sketch::getPath(int index)
+Model::Path* Sketch::getPath(const ID<Model::Path>& id)
 {
-  return mModel->mPaths[index];
+  return mModel->path(id);
 }
 
 Model::Sketch::NodeList& Sketch::nodes(Model::Sketch* sketch)

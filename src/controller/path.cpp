@@ -5,10 +5,10 @@
 namespace Controller
 {
 
-Path::Path(UndoManager* undoManager, Accessor* accessor, int pathIndex)
+Path::Path(UndoManager* undoManager, Accessor* accessor, const ID<Model::Path>& id)
   : mUndoManager(undoManager)
   , mAccessor(accessor)
-  , mPathIndex(pathIndex)
+  , mID(id)
 {
 }
 
@@ -23,17 +23,20 @@ public:
     End,
   };
 
-  AddNodeCommand(Path::Accessor* accessor, int pathIndex, int entryIndex, const Point& position,
+  AddNodeCommand(Path::Accessor* accessor, const ID<Model::Path>& id, int entryIndex, const Point& position,
     const Point& preControl, const Point& postControl, NodeType type)
     : mAccessor(accessor)
     , mAddPosition()
     , mPosition(position)
-    , mPreControl(preControl)
-    , mPostControl(postControl)
+    , mPreControlPosition(preControl)
+    , mPostControlPosition(postControl)
     , mType(type)
-    , mPathIndex(pathIndex)
+    , mID(id)
+    , mNodeID(accessor->nextID<Model::Node>())
+    , mPreControlID(accessor->nextID<Model::ControlPoint>())
+    , mPostControlID(accessor->nextID<Model::ControlPoint>())
   {
-    Model::Path* model = mAccessor->getPath(mPathIndex);
+    Model::Path* model = mAccessor->getPath(mID);
 
     if (entryIndex == 0) {
       mAddPosition = Position::Start;
@@ -44,15 +47,17 @@ public:
 
   void redo() override
   { 
-    Model::Node* node = mAccessor->createNode(mPosition, mType);
+    mAccessor->createNode(mNodeID, mPosition, mType);
+    mAccessor->createControlPoint(mPreControlID, mNodeID, mPreControlPosition);
+    mAccessor->createControlPoint(mPostControlID, mNodeID, mPostControlPosition);
 
     Model::Path::Entry entry {
-      .mNode = node,
-      .mPreControl = mAccessor->createControlPoint(node, mPreControl),
-      .mPostControl = mAccessor->createControlPoint(node, mPostControl),
+      .mNode = mNodeID,
+      .mPreControl = mPreControlID,
+      .mPostControl = mPostControlID,
     };
 
-    Model::Path* model = mAccessor->getPath(mPathIndex);
+    Model::Path* model = mAccessor->getPath(mID);
     Model::Path::EntryList& entries = Path::entries(model);
 
     if (mAddPosition == Position::Start) {
@@ -64,7 +69,7 @@ public:
 
   void undo() override
   { 
-    Model::Path* model = mAccessor->getPath(mPathIndex);
+    Model::Path* model = mAccessor->getPath(mID);
     Model::Path::EntryList& entries = Path::entries(model);
 
     Model::Path::Entry entry;
@@ -77,9 +82,9 @@ public:
       entries.pop_back();
     }
 
-    mAccessor->destroyNode(entry.mNode);
-    mAccessor->destroyControlPoint(entry.mPreControl);
-    mAccessor->destroyControlPoint(entry.mPostControl);
+    mAccessor->destroyNode(mNodeID);
+    mAccessor->destroyControlPoint(mPreControlID);
+    mAccessor->destroyControlPoint(mPostControlID);
   }
 
   std::string description() override
@@ -91,10 +96,13 @@ private:
   Path::Accessor* mAccessor;
   Position mAddPosition;
   Point mPosition;
-  Point mPreControl;
-  Point mPostControl;
+  Point mPreControlPosition;
+  Point mPostControlPosition;
   NodeType mType;
-  int mPathIndex;
+  ID<Model::Path> mID;
+  ID<Model::Node> mNodeID;
+  ID<Model::ControlPoint> mPreControlID;
+  ID<Model::ControlPoint> mPostControlID;
 };
 
 void Path::addSymmetricNode(int index, const Point& position, const Point& controlA)
@@ -102,7 +110,7 @@ void Path::addSymmetricNode(int index, const Point& position, const Point& contr
   Vector offsetA = controlA - position;
 
   mUndoManager->pushCommand(
-    new AddNodeCommand(mAccessor, mPathIndex, index, position, controlA, position - offsetA, NodeType::Symmetric));
+    new AddNodeCommand(mAccessor, mID, index, position, controlA, position - offsetA, NodeType::Symmetric));
 }
 
 void Path::addSmoothNode(int index, const Point& position, const Point& controlA, double lengthB)
@@ -110,13 +118,13 @@ void Path::addSmoothNode(int index, const Point& position, const Point& controlA
   Vector offsetA = controlA - position;
 
   mUndoManager->pushCommand(
-      new AddNodeCommand(mAccessor, mPathIndex, index, position, controlA, position - offsetA.normalised() * lengthB,
+      new AddNodeCommand(mAccessor, mID, index, position, controlA, position - offsetA.normalised() * lengthB,
         NodeType::Smooth));
 }
 
 void Path::addSharpNode(int index, const Point& position)
 {
-  mUndoManager->pushCommand(new AddNodeCommand(mAccessor, mPathIndex, index, position, position, position,
+  mUndoManager->pushCommand(new AddNodeCommand(mAccessor, mID, index, position, position, position,
         NodeType::Sharp));
 }
 

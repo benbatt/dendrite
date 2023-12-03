@@ -5,6 +5,7 @@ src = include_directories('src')
 
 executable('spline_draw', 'src/main.cpp', 'src/mainwindow.cpp',
   'src/controller/controlpoint.cpp', 'src/controller/node.cpp', 'src/controller/path.cpp',
-  'src/controller/sketch.cpp', 'src/controller/undo.cpp', 'src/utilities/geometry.cpp', 'src/view/sketch.cpp',
+  'src/controller/sketch.cpp', 'src/controller/undo.cpp', 'src/model/sketch.cpp', 'src/utilities/geometry.cpp',
+  'src/view/sketch.cpp',
   dependencies: gtkmm,
   include_directories: src)

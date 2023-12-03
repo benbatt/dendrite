@@ -1,6 +1,7 @@
 #pragma once
 
 #include "utilities/geometry.h"
+#include "utilities/id.h"
 
 #include <vector>
 
@@ -29,7 +30,7 @@ public:
     , mType(type)
   {}
 
-  typedef std::vector<ControlPoint*> ControlPointList;
+  typedef std::vector<ID<ControlPoint>> ControlPointList;
 
   const Point& position() const { return mPosition; }
   Type type() const { return mType; }

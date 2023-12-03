@@ -15,14 +15,22 @@ public:
   class Accessor
   {
   public:
-    virtual Model::Node* createNode(const Point& position, Model::Node::Type type) = 0;
-    virtual void destroyNode(Model::Node* node) = 0;
-    virtual Model::ControlPoint* createControlPoint(Model::Node* node, const Point& position) = 0;
-    virtual void destroyControlPoint(Model::ControlPoint* controlPoint) = 0;
-    virtual Model::Path* getPath(int index) = 0;
+    template <class TModel>
+    ID<TModel> nextID()
+    {
+      return ID<TModel>(nextID());
+    }
+
+    virtual IDValue nextID() = 0;
+    virtual void createNode(const ID<Model::Node>& id, const Point& position, Model::Node::Type type) = 0;
+    virtual void destroyNode(const ID<Model::Node>& id) = 0;
+    virtual void createControlPoint(const ID<Model::ControlPoint>& id, const ID<Model::Node>& node,
+      const Point& position) = 0;
+    virtual void destroyControlPoint(const ID<Model::ControlPoint>& controlPoint) = 0;
+    virtual Model::Path* getPath(const ID<Model::Path>& id) = 0;
   };
 
-  Path(UndoManager* undoManager, Accessor* accessor, int pathIndex);
+  Path(UndoManager* undoManager, Accessor* accessor, const ID<Model::Path>& id);
 
   void addSymmetricNode(int index, const Point& position, const Point& controlA);
   void addSmoothNode(int index, const Point& position, const Point& controlA, double lengthB);
@@ -35,7 +43,7 @@ private:
 
   UndoManager* mUndoManager;
   Accessor* mAccessor;
-  int mPathIndex;
+  ID<Model::Path> mID;
 };
 
 }

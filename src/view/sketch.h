@@ -30,14 +30,34 @@ public:
       ControlPoint,
     };
 
-    bool refersTo(Type type) const { return mIndex >= 0 && mType == type; }
+    Handle()
+      : mType(Node)
+      , mID(0)
+    {}
 
-    operator bool() const { return mIndex >= 0; }
-    bool operator==(const Handle& other) const { return mType == other.mType && mIndex == other.mIndex; }
+    Handle(const ID<Model::ControlPoint>& id)
+      : mType(ControlPoint)
+      , mID(id.value())
+    {}
+
+    Handle(const ID<Model::Node>& id)
+      : mType(Node)
+      , mID(id.value())
+    {}
+
+    template<class TModel>
+    ID<TModel> id() const { return ID<TModel>(mID); }
+
+    bool refersTo(Type type) const { return mID > 0 && mType == type; }
+    Model::ControlPoint* controlPoint(const Model::Sketch* sketch) const;
+    Model::Node* node(const Model::Sketch* sketch) const;
+
+    operator bool() const { return mID > 0; }
+    bool operator==(const Handle& other) const { return mType == other.mType && mID == other.mID; }
     bool operator!=(const Handle& other) const { return !(*this == other); }
 
     Type mType;
-    int mIndex;
+    IDValue mID;
   };
 
 private:
@@ -57,13 +77,11 @@ private:
   void onCancel(const Glib::VariantBase&);
 
   Handle findHandle(double x, double y);
-  Handle findHandle(const Model::Node* node);
-  Handle findHandle(const Model::ControlPoint* controlPoint);
 
   Point handlePosition(const Handle& handle) const;
   void setHandlePosition(const Handle& handle, const Point& position);
 
-  const Model::Node* nodeForHandle(const Handle& handle);
+  ID<Model::Node> nodeIDForHandle(const Handle& handle);
 
   class Mode
   {

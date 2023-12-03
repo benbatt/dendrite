@@ -1,5 +1,7 @@
 #pragma once
 
+#include "utilities/id.h"
+
 #include <vector>
 
 namespace Controller
@@ -18,9 +20,9 @@ class Path
 public:
   struct Entry
   {
-    Node* mNode;
-    ControlPoint* mPreControl;
-    ControlPoint* mPostControl;
+    ID<Node> mNode;
+    ID<ControlPoint> mPreControl;
+    ID<ControlPoint> mPostControl;
   };
 
   typedef std::vector<Entry> EntryList;

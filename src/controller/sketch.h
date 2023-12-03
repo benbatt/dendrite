@@ -6,6 +6,8 @@
 
 #include "model/sketch.h"
 
+#include "utilities/id.h"
+
 namespace Controller
 {
 
@@ -18,26 +20,25 @@ public:
 
   void addPath();
 
-  Path controllerForPath(int index);
-  Node controllerForNode(int index);
-  Node controllerForNode(const Model::Node* model);
-  ControlPoint controllerForControlPoint(int index);
+  Path controllerForPath(const ID<Model::Path>& id);
+  Node controllerForNode(const ID<Model::Node>& id);
+  ControlPoint controllerForControlPoint(const ID<Model::ControlPoint>& id);
 
 private:
   friend class AddNodeCommand;
 
-  // Node::Accessor
-  Model::Node* getNode(int index) override;
-
-  // ControlPoint::Accessor
-  Model::ControlPoint* getControlPoint(int index) override;
+  // Node::Accessor and ControlPoint::Accessor
+  Model::ControlPoint* getControlPoint(const ID<Model::ControlPoint>& id) override;
+  Model::Node* getNode(const ID<Model::Node>& id) override;
 
   // Path::Accessor
-  Model::Node* createNode(const Point& position, Model::Node::Type type) override;
-  void destroyNode(Model::Node* node) override;
-  Model::ControlPoint* createControlPoint(Model::Node* node, const Point& position) override;
-  void destroyControlPoint(Model::ControlPoint* controlPoint) override;
-  Model::Path* getPath(int index) override;
+  IDValue nextID() override;
+  void createNode(const ID<Model::Node>& id, const Point& position, Model::Node::Type type) override;
+  void destroyNode(const ID<Model::Node>& id) override;
+  void createControlPoint(const ID<Model::ControlPoint>& id, const ID<Model::Node>& node,
+    const Point& position) override;
+  void destroyControlPoint(const ID<Model::ControlPoint>& id) override;
+  Model::Path* getPath(const ID<Model::Path>& id) override;
 
   static Model::Sketch::NodeList& nodes(Model::Sketch* sketch);
 

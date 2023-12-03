@@ -16,10 +16,11 @@ public:
   class Accessor
   {
   public:
-    virtual Model::Node* getNode(int index) = 0;
+    virtual Model::ControlPoint* getControlPoint(const ID<Model::ControlPoint>& id) = 0;
+    virtual Model::Node* getNode(const ID<Model::Node>& id) = 0;
   };
 
-  Node(UndoManager* undoManager, Accessor* accessor, int nodeIndex);
+  Node(UndoManager* undoManager, Accessor* accessor, const ID<Model::Node>& id);
 
   void setPosition(const Point& position);
 
@@ -38,7 +39,7 @@ private:
 
   UndoManager* mUndoManager;
   Accessor* mAccessor;
-  int mNodeIndex;
+  ID<Model::Node> mID;
 };
 
 }
