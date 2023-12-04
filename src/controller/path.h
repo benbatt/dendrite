@@ -36,8 +36,11 @@ public:
   void addSmoothNode(int index, const Point& position, const Point& controlA, double lengthB);
   void addSharpNode(int index, const Point& position);
 
+  void addEntry(int index, const Model::Path::Entry& entry);
+
 private:
   friend class AddNodeCommand;
+  friend class AddEntryCommand;
 
   static Model::Path::EntryList& entries(Model::Path* path);
 

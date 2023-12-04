@@ -18,7 +18,7 @@ class Sketch : private ControlPoint::Accessor, private Node::Accessor, private P
 public:
   Sketch(UndoManager* undoManager, Model::Sketch* model);
 
-  void addPath();
+  ID<Model::Path> addPath();
 
   Path controllerForPath(const ID<Model::Path>& id);
   Node controllerForNode(const ID<Model::Node>& id);

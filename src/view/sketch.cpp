@@ -303,13 +303,15 @@ public:
 
   void draw(Sketch& sketch, const Cairo::RefPtr<Cairo::Context>& context, int width, int height) override
   {
-    const Model::Path* path = sketch.mModel->firstPath();
-    const Model::Path::EntryList& entries = path->entries();
+    sketch.mModel->forEachPath(
+      [&sketch, &context](const ID<Model::Path>& id, const Model::Path* path) -> bool {
+        for (const Model::Path::Entry& entry : path->entries()) {
+          drawAddHandle(context, 10, sketch.mModel->controlPoint(entry.mPreControl)->position(), false);
+          drawAddHandle(context, 10, sketch.mModel->controlPoint(entry.mPostControl)->position(), false);
+        }
 
-    if (!entries.empty()) {
-      drawAddHandle(context, 10, sketch.mModel->controlPoint(entries.front().mPreControl)->position(), false);
-      drawAddHandle(context, 10, sketch.mModel->controlPoint(entries.back().mPostControl)->position(), false);
-    }
+        return false;
+      });
 
     if (sketch.activeMode() == &mAdjustHandlesMode) {
       const Sketch::Handle& handle = mAdjustHandlesMode.dragHandle();
@@ -333,7 +335,7 @@ public:
     if (child == &mSetPositionMode) {
       ID<Model::Node> nodeID = mSetPositionMode.dragHandle().id<Model::Node>();
 
-      const Model::Path::EntryList& entries = sketch.mModel->firstPath()->entries();
+      const Model::Path::EntryList& entries = sketch.mModel->path(mCurrentPath)->entries();
 
       if (nodeID == entries.front().mNode) {
         mAdjustHandlesMode.setDragHandle(entries.front().mPreControl);
@@ -356,35 +358,57 @@ private:
       return;
     }
 
-    const Model::Path::EntryList& entries = sketch.mModel->firstPath()->entries();
+    sketch.mModel->forEachPath(
+      [this, &sketch, &handle](const ID<Model::Path>& pathID, const Model::Path* path) -> bool {
+        const Model::Path::EntryList& entries = path->entries();
 
-    if (entries.empty()) {
-      return;
-    }
+        if (entries.empty()) {
+          return false;
+        }
 
-    int addIndex = -1;
+        Model::Path::EntryList::const_iterator entryIterator = entries.end();
+        int addIndex = -1;
 
-    if (handle == entries.front().mPreControl) {
-      addIndex = 0;
-    } else if (handle == entries.back().mPostControl) {
-      addIndex = entries.size();
-    } else {
-      return;
-    }
+        if (handle == entries.front().mPreControl) {
+          addIndex = 0;
+        } else if (handle == entries.back().mPostControl) {
+          addIndex = entries.size();
+        } else {
+          entryIterator = std::find_if(entries.begin(), entries.end(),
+            [&handle](const Model::Path::Entry& entry) -> bool {
+              return handle == entry.mPreControl || handle == entry.mPostControl;
+            });
 
-    const Model::ControlPoint* controlPoint = handle.controlPoint(sketch.mModel);
+          if (entryIterator == entries.end()) {
+            return false;
+          }
 
-    sketch.mUndoManager->beginGroup();
+          addIndex = (handle == entryIterator->mPreControl) ? 0 : 1;
+        }
 
-    sketch.mController->controllerForPath(sketch.mModel->firstPathID())
-      .addSymmetricNode(addIndex, controlPoint->position(), controlPoint->position());
+        sketch.mUndoManager->beginGroup();
 
-    mSetPositionMode.setDragHandle(entries[addIndex].mNode);
-    sketch.pushMode(&mSetPositionMode);
+        mCurrentPath = pathID;
+
+        if (entryIterator != entries.end()) {
+          mCurrentPath = sketch.mController->addPath();
+          sketch.mController->controllerForPath(mCurrentPath).addEntry(0, *entryIterator);
+        }
+
+        const Point& position = handle.controlPoint(sketch.mModel)->position();
+
+        sketch.mController->controllerForPath(mCurrentPath).addSymmetricNode(addIndex, position, position);
+
+        mSetPositionMode.setDragHandle(sketch.mModel->path(mCurrentPath)->entries()[addIndex].mNode);
+        sketch.pushMode(&mSetPositionMode);
+
+        return true;
+      });
   };
 
   SketchModePlace mSetPositionMode;
   SketchModePlace mAdjustHandlesMode;
+  ID<Model::Path> mCurrentPath;
 };
 
 SketchModeAdd SketchModeAdd::sInstance;
@@ -423,9 +447,7 @@ Sketch::Sketch(Controller::UndoManager *undoManager, Context& context)
 
   undoManager->signalChanged().connect(sigc::mem_fun(*this, &Sketch::refreshHandles));
 
-  mController->addPath();
-
-  Controller::Path pathController = mController->controllerForPath(mModel->firstPathID());
+  Controller::Path pathController = mController->controllerForPath(mController->addPath());
 
   pathController.addSymmetricNode(0, { 30, 20 }, { 20, 10 });
   pathController.addSymmetricNode(1, { 60, 30 }, { 50, 20 });

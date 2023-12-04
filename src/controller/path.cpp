@@ -128,6 +128,53 @@ void Path::addSharpNode(int index, const Point& position)
         NodeType::Sharp));
 }
 
+class AddEntryCommand : public UndoCommand
+{
+public:
+  AddEntryCommand(Path::Accessor* accessor, const ID<Model::Path>& id, int addIndex, const Model::Path::Entry& entry)
+    : mAccessor(accessor)
+    , mEntry(entry)
+    , mID(id)
+    , mAddIndex(addIndex)
+  {}
+
+  void redo() override
+  { 
+    Model::Path* model = mAccessor->getPath(mID);
+    Model::Path::EntryList& entries = Path::entries(model);
+
+    if (mAddIndex < entries.size()) {
+      entries.insert(std::next(entries.begin(), mAddIndex), mEntry);
+    } else {
+      entries.push_back(mEntry);
+    }
+  }
+
+  void undo() override
+  { 
+    Model::Path* model = mAccessor->getPath(mID);
+    Model::Path::EntryList& entries = Path::entries(model);
+
+    entries.erase(std::next(entries.begin(), mAddIndex));
+  }
+
+  std::string description() override
+  {
+    return "Add node";
+  }
+
+private:
+  Path::Accessor* mAccessor;
+  Model::Path::Entry mEntry;
+  ID<Model::Path> mID;
+  int mAddIndex;
+};
+
+void Path::addEntry(int index, const Model::Path::Entry& entry)
+{
+  mUndoManager->pushCommand(new AddEntryCommand(mAccessor, mID, index, entry));
+}
+
 Model::Path::EntryList& Path::entries(Model::Path* path)
 {
   return path->mEntries;

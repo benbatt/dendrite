@@ -14,7 +14,7 @@ Sketch::Sketch(UndoManager *undoManager, Model::Sketch* model)
 {
 }
 
-void Sketch::addPath()
+ID<Model::Path> Sketch::addPath()
 {
   ID<Model::Path> id = Path::Accessor::nextID<Model::Path>();
 
@@ -25,6 +25,8 @@ void Sketch::addPath()
       mModel->mPaths.erase(id);
     },
     "Add path");
+
+  return id;
 }
 
 Path Sketch::controllerForPath(const ID<Model::Path>& id)

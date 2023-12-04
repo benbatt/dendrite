@@ -51,9 +51,6 @@ public:
     }
   }
 
-  Path* firstPath() const { return mPaths.begin()->second; }
-  ID<Path> firstPathID() const { return mPaths.begin()->first; }
-
   ControlPoint* controlPoint(const ID<ControlPoint>& id) const;
   Node* node(const ID<Node>& id) const;
   Path* path(const ID<Path>& id) const;
