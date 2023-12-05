@@ -100,6 +100,7 @@ private:
   Mode* activeMode() const;
   void pushMode(Mode* mode);
   void popMode(Mode* mode);
+  void cancelActiveMode();
   void cancelModeStack();
 
   Model::Sketch* mModel;

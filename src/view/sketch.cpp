@@ -330,6 +330,23 @@ public:
     }
   }
 
+  bool onKeyPressed(Sketch& sketch, guint keyval, guint keycode, Gdk::ModifierType state) override
+  {
+    if ((keyval == GDK_KEY_C || keyval == GDK_KEY_c) && sketch.activeMode() == &mSetPositionMode) {
+      const Model::Path* path = sketch.mModel->path(mCurrentPath);
+
+      if (path->entries().size() > 2) {
+        sketch.cancelActiveMode();
+        sketch.mController->controllerForPath(mCurrentPath).setClosed(true);
+        sketch.queue_draw();
+      }
+
+      return true;
+    }
+
+    return false;
+  }
+
   void onChildPopped(Sketch& sketch, Sketch::Mode* child) override
   {
     if (child == &mSetPositionMode) {
@@ -369,9 +386,9 @@ private:
         Model::Path::EntryList::const_iterator entryIterator = entries.end();
         int addIndex = -1;
 
-        if (handle == entries.front().mPreControl) {
+        if (!path->isClosed() && handle == entries.front().mPreControl) {
           addIndex = 0;
-        } else if (handle == entries.back().mPostControl) {
+        } else if (!path->isClosed() && handle == entries.back().mPostControl) {
           addIndex = entries.size();
         } else {
           entryIterator = std::find_if(entries.begin(), entries.end(),
@@ -474,6 +491,15 @@ void Sketch::onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width, int
           context->curve_to(control1.x, control1.y, control2.x, control2.y, position.x, position.y);
         }
 
+        if (path->isClosed()) {
+          const Point& control1 = mModel->controlPoint(entries.back().mPostControl)->position();
+          const Point& control2 = mModel->controlPoint(entries.front().mPreControl)->position();
+          const Point& position = mModel->node(entries.front().mNode)->position();
+
+          context->curve_to(control1.x, control1.y, control2.x, control2.y, position.x, position.y);
+          context->close_path();
+        }
+
         context->set_source_rgb(0, 0, 0);
         context->set_line_width(2);
         context->stroke();
@@ -535,8 +561,10 @@ void Sketch::onPointerMotion(double x, double y)
 
 bool Sketch::onKeyPressed(guint keyval, guint keycode, Gdk::ModifierType state)
 {
-  if (!mModeStack.empty()) {
-    return mModeStack.front()->onKeyPressed(*this, keyval, keycode, state);
+  for (auto it = mModeStack.begin(); it != mModeStack.end(); ++it) {
+    if ((*it)->onKeyPressed(*this, keyval, keycode, state)) {
+      return true;
+    }
   }
 
   return false;
@@ -689,15 +717,22 @@ void Sketch::popMode(Mode* mode)
   }
 }
 
-void Sketch::cancelModeStack()
+void Sketch::cancelActiveMode()
 {
-  while (!mModeStack.empty()) {
+  if (!mModeStack.empty()) {
     mModeStack.front()->onCancel(*this);
     mModeStack.front()->end(*this);
     mModeStack.pop_front();
   }
 
   queue_draw();
+}
+
+void Sketch::cancelModeStack()
+{
+  while (!mModeStack.empty()) {
+    cancelActiveMode();
+  }
 }
 
 }

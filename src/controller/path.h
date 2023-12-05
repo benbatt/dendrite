@@ -38,6 +38,8 @@ public:
 
   void addEntry(int index, const Model::Path::Entry& entry);
 
+  void setClosed(bool closed);
+
 private:
   friend class AddNodeCommand;
   friend class AddEntryCommand;

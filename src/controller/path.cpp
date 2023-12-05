@@ -175,6 +175,23 @@ void Path::addEntry(int index, const Model::Path::Entry& entry)
   mUndoManager->pushCommand(new AddEntryCommand(mAccessor, mID, index, entry));
 }
 
+void Path::setClosed(bool closed)
+{
+  Model::Path* path = mAccessor->getPath(mID);
+
+  const unsigned int Flag_Closed = Model::Path::Flag_Closed;
+
+  unsigned int oldFlags = path->mFlags;
+  unsigned int newFlags = closed ? (path->mFlags | Flag_Closed) : (path->mFlags & ~Flag_Closed);
+  auto accessor = mAccessor;
+  auto id = mID;
+
+  mUndoManager->pushCommand(
+      [newFlags, accessor, id]() { accessor->getPath(id)->mFlags = newFlags; },
+      [oldFlags, accessor, id]() { accessor->getPath(id)->mFlags = oldFlags; },
+      "Close path");
+}
+
 Model::Path::EntryList& Path::entries(Model::Path* path)
 {
   return path->mEntries;
