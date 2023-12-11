@@ -9,6 +9,12 @@ namespace Controller
   class Sketch;
 }
 
+namespace Serialisation
+{
+  class Layout;
+  class Reader;
+}
+
 namespace Model
 {
 
@@ -22,7 +28,7 @@ public:
   Sketch();
 
   template<class TAction>
-  void forEachControlPoint(const TAction& action)
+  void forEachControlPoint(const TAction& action) const
   {
     for (const auto& current : mControlPoints) {
       if (action(current.first, current.second)) {
@@ -32,7 +38,7 @@ public:
   }
 
   template<class TAction>
-  void forEachNode(const TAction& action)
+  void forEachNode(const TAction& action) const
   {
     for (const auto& current : mNodes) {
       if (action(current.first, current.second)) {
@@ -42,7 +48,7 @@ public:
   }
 
   template<class TAction>
-  void forEachPath(const TAction& action)
+  void forEachPath(const TAction& action) const
   {
     for (const auto& current : mPaths) {
       if (action(current.first, current.second)) {
@@ -57,6 +63,8 @@ public:
 
 private:
   friend class Controller::Sketch;
+  friend class Serialisation::Layout;
+  friend class Serialisation::Reader;
 
   typedef std::unordered_map<ID<ControlPoint>, ControlPoint*> ControlPointList;
   typedef std::unordered_map<ID<Node>, Node*> NodeList;

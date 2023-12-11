@@ -10,6 +10,11 @@ namespace Controller
   class Node;
 }
 
+namespace Serialisation
+{
+  class Layout;
+}
+
 namespace Model
 {
 
@@ -25,6 +30,10 @@ public:
     Sharp,
   };
 
+  Node()
+    : Node({0, 0}, Type::Symmetric)
+  {}
+
   Node(const Point& position, Type type)
     : mPosition(position)
     , mType(type)
@@ -38,6 +47,7 @@ public:
 
 private:
   friend class Controller::Node;
+  friend class Serialisation::Layout;
 
   ControlPointList mControlPoints;
   Point mPosition;

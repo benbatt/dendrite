@@ -44,6 +44,14 @@ UndoManager::UndoManager()
 {
 }
 
+void clearStack(std::stack<UndoCommand*>& stack)
+{
+  while (!stack.empty()) {
+    delete stack.top();
+    stack.pop();
+  }
+}
+
 void UndoManager::pushCommand(UndoCommand* command)
 {
   command->redo();
@@ -67,10 +75,7 @@ void UndoManager::pushCommand(UndoCommand* command)
 
   mEnableMerge = true;
 
-  while (!mRedoCommands.empty()) {
-    delete mRedoCommands.top();
-    mRedoCommands.pop();
-  }
+  clearStack(mRedoCommands);
 }
 
 void UndoManager::undo()
@@ -130,6 +135,14 @@ void UndoManager::endGroup()
   if (mCurrentGroup) {
     mCurrentGroup = nullptr;
   }
+}
+
+void UndoManager::clear()
+{
+  cancelGroup();
+
+  clearStack(mUndoCommands);
+  clearStack(mRedoCommands);
 }
 
 }

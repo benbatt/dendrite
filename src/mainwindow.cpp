@@ -4,8 +4,8 @@
 
 #include <gtkmm/gestureclick.h>
 
-MainWindow::MainWindow(Controller::UndoManager* undoManager, View::Context& viewContext)
-  : mSketchView(undoManager, viewContext)
+MainWindow::MainWindow(Model::Sketch* model, Controller::UndoManager* undoManager, View::Context& viewContext)
+  : mSketchView(model, undoManager, viewContext)
   , mUndoManager(undoManager)
 {
   set_show_menubar(true);

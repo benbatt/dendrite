@@ -4,6 +4,11 @@
 
 #include <gtkmm/applicationwindow.h>
 
+namespace Model
+{
+  class Sketch;
+}
+
 namespace Controller
 {
   class UndoManager;
@@ -12,7 +17,7 @@ namespace Controller
 class MainWindow : public Gtk::ApplicationWindow
 {
 public:
-  MainWindow(Controller::UndoManager* undoManager, View::Context& viewContext);
+  MainWindow(Model::Sketch* model, Controller::UndoManager* undoManager, View::Context& viewContext);
   ~MainWindow() override;
 
 private:

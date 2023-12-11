@@ -20,7 +20,7 @@ class Context;
 class Sketch : public Gtk::DrawingArea
 {
 public:
-  Sketch(Controller::UndoManager* undoManager, Context& context);
+  Sketch(Model::Sketch* model, Controller::UndoManager* undoManager, Context& context);
 
   struct Handle
   {
@@ -75,6 +75,7 @@ private:
   void activateMoveMode(const Glib::VariantBase&);
   void activateViewMode(const Glib::VariantBase&);
   void onCancel(const Glib::VariantBase&);
+  void setModel(Model::Sketch* model);
 
   Handle findHandle(double x, double y);
 

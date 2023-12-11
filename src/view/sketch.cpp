@@ -430,8 +430,10 @@ private:
 
 SketchModeAdd SketchModeAdd::sInstance;
 
-Sketch::Sketch(Controller::UndoManager *undoManager, Context& context)
-  : mUndoManager(undoManager)
+Sketch::Sketch(Model::Sketch* model, Controller::UndoManager *undoManager, Context& context)
+  : mModel(nullptr)
+  , mController(nullptr)
+  , mUndoManager(undoManager)
 {
   set_focusable(true);
 
@@ -441,6 +443,7 @@ Sketch::Sketch(Controller::UndoManager *undoManager, Context& context)
   context.moveAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::activateMoveMode));
   context.viewAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::activateViewMode));
   context.cancelAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::onCancel));
+  context.signalModelChanged().connect(sigc::mem_fun(*this, &Sketch::setModel));
 
   auto clickController = Gtk::GestureClick::create();
   clickController->signal_pressed().connect(sigc::mem_fun(*this, &Sketch::onPointerPressed));
@@ -459,17 +462,9 @@ Sketch::Sketch(Controller::UndoManager *undoManager, Context& context)
   keyController->signal_key_pressed().connect(sigc::mem_fun(*this, &Sketch::onKeyPressed), false);
   add_controller(keyController);
 
-  mModel = new Model::Sketch;
-  mController = new Controller::Sketch(undoManager, mModel);
-
   undoManager->signalChanged().connect(sigc::mem_fun(*this, &Sketch::refreshHandles));
 
-  Controller::Path pathController = mController->controllerForPath(mController->addPath());
-
-  pathController.addSymmetricNode(0, { 30, 20 }, { 20, 10 });
-  pathController.addSymmetricNode(1, { 60, 30 }, { 50, 20 });
-
-  refreshHandles();
+  setModel(model);
 }
 
 void Sketch::onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width, int height)
@@ -603,6 +598,17 @@ void Sketch::onCancel(const Glib::VariantBase&)
 
     queue_draw();
   }
+}
+
+void Sketch::setModel(Model::Sketch* model)
+{
+  mModel = model;
+
+  delete mController;
+  mController = new Controller::Sketch(mUndoManager, mModel);
+
+  cancelModeStack();
+  refreshHandles();
 }
 
 Handle Sketch::findHandle(double x, double y)

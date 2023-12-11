@@ -9,6 +9,11 @@ namespace Controller
   class Path;
 }
 
+namespace Serialisation
+{
+  class Layout;
+}
+
 namespace Model
 {
 
@@ -18,6 +23,10 @@ class ControlPoint;
 class Path
 {
 public:
+  Path()
+    : mFlags(0)
+  {}
+
   struct Entry
   {
     ID<Node> mNode;
@@ -32,6 +41,7 @@ public:
 
 private:
   friend class Controller::Path;
+  friend class Serialisation::Layout;
 
   enum {
     Flag_Closed = 0x00000001,

@@ -1,8 +1,9 @@
 #pragma once
 
+#include <cstdint>
 #include <functional>
 
-typedef unsigned int IDValue;
+typedef uint32_t IDValue;
 
 template<class TModel>
 class ID

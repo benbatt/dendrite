@@ -4,6 +4,11 @@
 
 class Application;
 
+namespace Model
+{
+  class Sketch;
+}
+
 namespace View
 {
 
@@ -15,6 +20,8 @@ public:
   Glib::RefPtr<Gio::SimpleAction>& cancelAction() { return mCancelAction; }
   Glib::RefPtr<Gio::SimpleAction>& viewAction() { return mViewAction; }
 
+  sigc::signal<void(Model::Sketch*)> signalModelChanged() { return mModelChangedSignal; }
+
 private:
   friend class ::Application;
 
@@ -22,6 +29,7 @@ private:
   Glib::RefPtr<Gio::SimpleAction> mMoveAction;
   Glib::RefPtr<Gio::SimpleAction> mCancelAction;
   Glib::RefPtr<Gio::SimpleAction> mViewAction;
+  sigc::signal<void(Model::Sketch*)> mModelChangedSignal;
 };
 
 }

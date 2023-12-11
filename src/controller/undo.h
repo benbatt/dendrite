@@ -104,6 +104,8 @@ public:
   void cancelGroup();
   void endGroup();
 
+  void clear();
+
   using Signal = sigc::signal<void()>;
 
   Signal signalChanged() { return mSignalChanged; }
