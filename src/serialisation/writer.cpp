@@ -39,29 +39,23 @@ void Writer::endChunk(const Chunk& chunk)
   mStream.seekp(position);
 }
 
+template <class TRange, class TModel>
+void buildIDMap(const TRange& range, std::unordered_map<ID<TModel>, IDValue>* map)
+{
+  map->clear();
+
+  IDValue nextIndex = 1;
+
+  for (auto current : range) {
+    (*map)[current.first] = nextIndex;
+    ++nextIndex;
+  }
+}
+
 void Writer::beginObject(Model::Sketch** sketch)
 {
-  mNodeIndices.clear();
-
-  int nextIndex = 1;
-
-  (*sketch)->forEachNode(
-    [this, &nextIndex](const ID<Model::Node>& id, const Model::Node* node) {
-      mNodeIndices[id] = nextIndex;
-      ++nextIndex;
-      return false;
-    });
-
-  mControlPointIndices.clear();
-
-  nextIndex = 1;
-
-  (*sketch)->forEachControlPoint(
-    [this, &nextIndex](const ID<Model::ControlPoint>& id, const Model::ControlPoint* controlPoint) {
-      mControlPointIndices[id] = nextIndex;
-      ++nextIndex;
-      return false;
-    });
+  buildIDMap((*sketch)->nodes(), &mNodeIndices);
+  buildIDMap((*sketch)->controlPoints(), &mControlPointIndices);
 }
 
 void Writer::endObject(Model::Sketch* sketch)

@@ -27,35 +27,26 @@ class Sketch
 public:
   Sketch();
 
-  template<class TAction>
-  void forEachControlPoint(const TAction& action) const
+  template <class TModel>
+  class Accessor
   {
-    for (const auto& current : mControlPoints) {
-      if (action(current.first, current.second)) {
-        return;
-      }
-    }
-  }
+  public:
+    auto begin() const { return mCollection.begin(); }
+    auto end() const { return mCollection.end(); }
 
-  template<class TAction>
-  void forEachNode(const TAction& action) const
-  {
-    for (const auto& current : mNodes) {
-      if (action(current.first, current.second)) {
-        return;
-      }
-    }
-  }
+  private:
+    friend class Sketch;
 
-  template<class TAction>
-  void forEachPath(const TAction& action) const
-  {
-    for (const auto& current : mPaths) {
-      if (action(current.first, current.second)) {
-        return;
-      }
-    }
-  }
+    Accessor(const std::unordered_map<ID<TModel>, TModel*>& collection)
+      : mCollection(collection)
+    {}
+
+    const std::unordered_map<ID<TModel>, TModel*>& mCollection;
+  };
+
+  Accessor<Model::Node> nodes() const { return Accessor(mNodes); }
+  Accessor<Model::ControlPoint> controlPoints() const { return Accessor(mControlPoints); }
+  Accessor<Model::Path> paths() const { return Accessor(mPaths); }
 
   ControlPoint* controlPoint(const ID<ControlPoint>& id) const;
   Node* node(const ID<Node>& id) const;
