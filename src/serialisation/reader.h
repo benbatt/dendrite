@@ -21,7 +21,13 @@ public:
 
   Reader(Stream& stream);
 
-  void beginChunk(ChunkID id, Chunk* chunk);
+  struct Chunk
+  {
+    Stream::pos_type mBodyStart;
+    Stream::off_type mBodySize;
+  };
+
+  Chunk beginChunk(ChunkID id);
   void endChunk(const Chunk& chunk);
   void beginObject(Model::Sketch** sketch);
   void endObject(Model::Sketch* sketch);

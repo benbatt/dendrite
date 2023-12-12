@@ -17,12 +17,6 @@ public:
   uint32_t mValue;
 };
 
-struct Chunk
-{
-  std::char_traits<char>::pos_type mBodyStart;
-  std::streamoff mBodySize;
-};
-
 struct Element
 {
   std::char_traits<char>::pos_type mBodyStart;

@@ -16,26 +16,26 @@ Writer::Writer(Stream& stream)
 {
 }
 
-void Writer::beginChunk(ChunkID id, Chunk* chunk)
+Writer::Stream::pos_type Writer::beginChunk(ChunkID id)
 {
   asUint32(&id.mValue);
   mStream.write("size", 4);
 
-  chunk->mBodyStart = mStream.tellp();
+  return mStream.tellp();
 }
 
-void Writer::endChunk(const Chunk& chunk)
+void Writer::endChunk(const Stream::pos_type& bodyStart)
 {
   Stream::pos_type position = mStream.tellp();
-  std::streamoff size = position - chunk.mBodyStart;
+  std::streamoff size = position - bodyStart;
 
   if (size % 2 != 0) {
     mStream.put(0);
     position = mStream.tellp();
-    size = position - chunk.mBodyStart;
+    size = position - bodyStart;
   }
 
-  mStream.seekp(chunk.mBodyStart - std::streamoff(4));
+  mStream.seekp(bodyStart - std::streamoff(4));
   writeAs<uint32_t>(size);
 
   mStream.seekp(position);

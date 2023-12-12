@@ -23,8 +23,8 @@ public:
 
   Writer(Stream& stream);
 
-  void beginChunk(ChunkID id, Chunk* chunk);
-  void endChunk(const Chunk& chunk);
+  Stream::pos_type beginChunk(ChunkID id);
+  void endChunk(const Stream::pos_type& bodyStart);
   void beginObject(Model::Sketch** sketch);
   void endObject(Model::Sketch* sketch);
 

@@ -16,15 +16,19 @@ Reader::Reader(Stream& stream)
 {
 }
 
-void Reader::beginChunk(ChunkID id, Chunk* chunk)
+Reader::Chunk Reader::beginChunk(ChunkID id)
 {
   uint32_t actualID = 0;
   read(&actualID);
 
   assert(actualID == id.mValue);
 
-  readAs<uint32_t>(&chunk->mBodySize);
-  chunk->mBodyStart = mStream.tellg();
+  Chunk chunk;
+
+  readAs<uint32_t>(&chunk.mBodySize);
+  chunk.mBodyStart = mStream.tellg();
+
+  return chunk;
 }
 
 void Reader::endChunk(const Chunk& chunk)
