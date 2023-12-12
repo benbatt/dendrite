@@ -132,8 +132,7 @@ void Application::onSave()
       std::ofstream stream(file->get_path(), std::ios_base::binary);
 
       Serialisation::Writer writer(stream);
-      Serialisation::Endpoint endpoint(writer);
-      Serialisation::Layout::process(endpoint, mModel);
+      Serialisation::Layout::process(writer, mModel);
     });
 }
 
@@ -147,8 +146,7 @@ void Application::onOpen()
       std::ifstream stream(file->get_path(), std::ios_base::binary);
 
       Serialisation::Reader reader(stream);
-      Serialisation::Endpoint endpoint(reader);
-      Model::Sketch* newModel = Serialisation::Layout::process(endpoint, nullptr);
+      Model::Sketch* newModel = Serialisation::Layout::process(reader, nullptr);
 
       mUndoManager.clear();
 

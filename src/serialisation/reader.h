@@ -1,9 +1,15 @@
 #pragma once
 
-#include "serialisation/endpoint.h"
+#include "serialisation/types.h"
+#include "utilities/id.h"
 
 #include <istream>
 #include <unordered_map>
+
+namespace Model
+{
+  class Sketch;
+}
 
 namespace Serialisation
 {

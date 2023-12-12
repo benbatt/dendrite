@@ -6,6 +6,8 @@
 #include "utilities/geometry.h"
 #include "utilities/id.h"
 
+#include <cassert>
+
 namespace Serialisation
 {
 
