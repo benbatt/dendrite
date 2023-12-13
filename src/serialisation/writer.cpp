@@ -16,9 +16,9 @@ Writer::Writer(Stream& stream)
 {
 }
 
-Writer::Stream::pos_type Writer::beginChunk(ChunkID id)
+Writer::Stream::pos_type Writer::beginChunk(uint32_t id)
 {
-  asUint32(&id.mValue);
+  asUint32(&id);
   mStream.write("size", 4);
 
   return mStream.tellp();

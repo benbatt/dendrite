@@ -1,6 +1,5 @@
 #pragma once
 
-#include "serialisation/types.h"
 #include "utilities/id.h"
 
 #include <istream>
@@ -27,7 +26,7 @@ public:
     Stream::off_type mBodySize;
   };
 
-  Element beginChunk(ChunkID id);
+  Element beginChunk(uint32_t expectedID);
   void endChunk(const Element& element);
   void beginObject(Model::Sketch** sketch);
   void endObject(Model::Sketch* sketch);

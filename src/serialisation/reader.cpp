@@ -16,12 +16,12 @@ Reader::Reader(Stream& stream)
 {
 }
 
-Reader::Element Reader::beginChunk(ChunkID id)
+Reader::Element Reader::beginChunk(uint32_t expectedID)
 {
   uint32_t actualID = 0;
   read(&actualID);
 
-  assert(actualID == id.mValue);
+  assert(actualID == expectedID);
 
   return beginElement();
 }

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "serialisation/types.h"
 #include "utilities/id.h"
 
 #include <ostream>
@@ -23,7 +22,7 @@ public:
 
   Writer(Stream& stream);
 
-  Stream::pos_type beginChunk(ChunkID id);
+  Stream::pos_type beginChunk(uint32_t id);
   void endChunk(const Stream::pos_type& bodyStart);
   void beginObject(Model::Sketch** sketch);
   void endObject(Model::Sketch* sketch);

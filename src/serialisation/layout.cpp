@@ -5,7 +5,6 @@
 #include "model/path.h"
 #include "model/sketch.h"
 #include "serialisation/reader.h"
-#include "serialisation/types.h"
 #include "serialisation/writer.h"
 
 #include <cassert>
@@ -15,6 +14,19 @@ namespace Serialisation
 
 namespace
 {
+
+class ChunkID
+{
+public:
+  using ValueString = const char[5];
+
+  ChunkID(ValueString &value)
+    : mValue((value[3] << 24) | (value[2] << 16) | (value[1] << 8) | value[0])
+  {}
+  bool operator==(const ChunkID& other) const { return mValue == other.mValue; }
+
+  uint32_t mValue;
+};
 
 void checkValid(bool valid, std::string message)
 {
@@ -41,9 +53,15 @@ void simpleValue(TEndpoint& endpoint, Point* value)
 }
 
 template <class TEndpoint>
+auto beginChunk(TEndpoint& endpoint, ChunkID id)
+{
+  return endpoint.beginChunk(id.mValue);
+}
+
+template <class TEndpoint>
 auto beginListChunk(TEndpoint& endpoint, ChunkID id, ChunkID listID)
 {
-  auto result = endpoint.beginChunk(id);
+  auto result = endpoint.beginChunk(id.mValue);
 
   ChunkID listIDActual = listID;
   simpleValue(endpoint, &listIDActual);
@@ -127,7 +145,7 @@ Model::Sketch* Layout::process(TEndpoint& endpoint, Model::Sketch* sketch)
   auto riffChunk = beginListChunk(endpoint, "RIFF", "SPLN");
 
   // Format info
-  auto formatInfoChunk = endpoint.beginChunk("FRMT");
+  auto formatInfoChunk = beginChunk(endpoint, "FRMT");
 
   unsigned int version = CurrentVersion;
   endpoint.asUint32(&version);
@@ -140,21 +158,21 @@ Model::Sketch* Layout::process(TEndpoint& endpoint, Model::Sketch* sketch)
   endpoint.beginObject(&sketch);
 
   // Nodes
-  auto nodesChunk = endpoint.beginChunk("NODS");
+  auto nodesChunk = beginChunk(endpoint, "NODS");
 
   variableElements(endpoint, &sketch->mNodes, processNode<TEndpoint>);
 
   endpoint.endChunk(nodesChunk);
 
   // Control points
-  auto controlPointsChunk = endpoint.beginChunk("CPTS");
+  auto controlPointsChunk = beginChunk(endpoint, "CPTS");
 
   fixedElements(endpoint, &sketch->mControlPoints, processControlPoint<TEndpoint>);
 
   endpoint.endChunk(controlPointsChunk);
 
   // Paths
-  auto pathsChunk = endpoint.beginChunk("PTHS");
+  auto pathsChunk = beginChunk(endpoint, "PTHS");
 
   variableElements(endpoint, &sketch->mPaths, processPath<TEndpoint>);
 
