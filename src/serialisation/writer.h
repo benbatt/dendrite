@@ -44,10 +44,16 @@ public:
     }
   }
 
-  void beginElement(Element* element);
-  void beginFixedElement(Element* element);
-  void endElement(Element* element);
-  void endFixedElement(Element* element);
+  struct Element
+  {
+    Stream::pos_type mBodyStart;
+    Stream::off_type mBodySize;
+  };
+
+  Element beginElement();
+  Element beginFixedElement(const Element& element);
+  Element endElement(const Element& element);
+  void endFixedElement(const Element& element);
 
   template <class TModel>
   void id(ID<TModel>* id)

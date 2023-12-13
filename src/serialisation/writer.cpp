@@ -64,33 +64,39 @@ void Writer::endObject(Model::Sketch* sketch)
 {
 }
 
-void Writer::beginElement(Element* element)
+Writer::Element Writer::beginElement()
 {
   mStream.write("size", 4);
-  element->mBodyStart = mStream.tellp();
+  return { .mBodyStart = mStream.tellp() };
 }
 
-void Writer::beginFixedElement(Element* element)
+Writer::Element Writer::beginFixedElement(const Element& definition)
 {
-  element->mBodyStart = mStream.tellp();
+  Element element = definition;
+  element.mBodyStart = mStream.tellp();
+
+  return element;
 }
 
-void Writer::endElement(Element* element)
+Writer::Element Writer::endElement(const Element& element)
 {
   Stream::pos_type position = mStream.tellp();
 
-  element->mBodySize = position - element->mBodyStart;
+  Element result = element;
+  result.mBodySize = position - result.mBodyStart;
 
-  mStream.seekp(element->mBodyStart - std::streamoff(4));
-  writeAs<uint32_t>(element->mBodySize);
+  mStream.seekp(result.mBodyStart - std::streamoff(4));
+  writeAs<uint32_t>(result.mBodySize);
 
   mStream.seekp(position);
+
+  return result;
 }
 
-void Writer::endFixedElement(Element* element)
+void Writer::endFixedElement(const Element& element)
 {
-  Stream::pos_type size = mStream.tellp() - element->mBodyStart;
-  assert(size == element->mBodySize);
+  Stream::pos_type size = mStream.tellp() - element.mBodyStart;
+  assert(size == element.mBodySize);
 }
 
 void Writer::data(char* bytes, std::streamsize count)

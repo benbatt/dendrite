@@ -16,24 +16,19 @@ Reader::Reader(Stream& stream)
 {
 }
 
-Reader::Chunk Reader::beginChunk(ChunkID id)
+Reader::Element Reader::beginChunk(ChunkID id)
 {
   uint32_t actualID = 0;
   read(&actualID);
 
   assert(actualID == id.mValue);
 
-  Chunk chunk;
-
-  readAs<uint32_t>(&chunk.mBodySize);
-  chunk.mBodyStart = mStream.tellg();
-
-  return chunk;
+  return beginElement();
 }
 
-void Reader::endChunk(const Chunk& chunk)
+void Reader::endChunk(const Element& element)
 {
-  Stream::pos_type bodyEnd = chunk.mBodyStart + chunk.mBodySize;
+  Stream::pos_type bodyEnd = element.mBodyStart + element.mBodySize;
   Stream::pos_type position = mStream.tellg();
 
   assert(position <= bodyEnd);
@@ -51,28 +46,36 @@ void Reader::endObject(Model::Sketch* sketch)
   sketch->mNextID = std::max(sketch->mNodes.size(), sketch->mControlPoints.size()) + 1;
 }
 
-void Reader::beginElement(Element* element)
+Reader::Element Reader::beginElement()
 {
-  readAs<uint32_t>(&element->mBodySize);
-  element->mBodyStart = mStream.tellg();
+  Element element;
+  readAs<uint32_t>(&element.mBodySize);
+  element.mBodyStart = mStream.tellg();
+
+  return element;
 }
 
-void Reader::beginFixedElement(Element* element)
+Reader::Element Reader::beginFixedElement(const Element& definition)
 {
-  element->mBodyStart = mStream.tellg();
+  Element element = definition;
+  element.mBodyStart = mStream.tellg();
+
+  return element;
 }
 
-void Reader::endElement(Element* element)
+Reader::Element Reader::endElement(const Element& element)
 {
-  Stream::pos_type bodyEnd = element->mBodyStart + element->mBodySize;
+  Stream::pos_type bodyEnd = element.mBodyStart + element.mBodySize;
   Stream::pos_type position = mStream.tellg();
 
   assert(position <= bodyEnd);
 
   mStream.seekg(bodyEnd);
+
+  return element;
 }
 
-void Reader::endFixedElement(Element* element)
+void Reader::endFixedElement(const Element& element)
 {
   endElement(element);
 }

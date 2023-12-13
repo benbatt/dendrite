@@ -57,35 +57,34 @@ template <class TEndpoint, class TModel, class TCallback>
 void variableElements(TEndpoint& endpoint, std::unordered_map<ID<TModel>, TModel*>* map, TCallback callback)
 {
   endpoint.modelMap(map, [&endpoint, callback](TModel* model) {
-      Element element;
-      endpoint.beginElement(&element);
+      auto element = endpoint.beginElement();
 
       callback(endpoint, model);
 
-      endpoint.endElement(&element);
+      endpoint.endElement(element);
     });
 }
 
 template <class TEndpoint, class TModel, class TCallback>
 void fixedElements(TEndpoint& endpoint, std::unordered_map<ID<TModel>, TModel*>* map, TCallback callback)
 {
-  Element element;
+  typename TEndpoint::Element element;
 
   bool first = true;
 
   endpoint.modelMap(map, [&endpoint, callback, &element, &first](TModel* model) {
       if (first) {
-        endpoint.beginElement(&element);
+        element = endpoint.beginElement();
       } else {
-        endpoint.beginFixedElement(&element);
+        element = endpoint.beginFixedElement(element);
       }
 
       callback(endpoint, model);
 
       if (first) {
-        endpoint.endElement(&element);
+        element = endpoint.endElement(element);
       } else {
-        endpoint.endFixedElement(&element);
+        endpoint.endFixedElement(element);
       }
 
       first = false;
@@ -95,23 +94,23 @@ void fixedElements(TEndpoint& endpoint, std::unordered_map<ID<TModel>, TModel*>*
 template <class TEndpoint, class TValue, class TCallback>
 void fixedElements(TEndpoint& endpoint, std::vector<TValue>* vector, TCallback callback)
 {
-  Element element;
+  typename TEndpoint::Element element;
 
   bool first = true;
 
   endpoint.collection(vector, [&endpoint, callback, &element, &first](TValue* value) {
       if (first) {
-        endpoint.beginElement(&element);
+        element = endpoint.beginElement();
       } else {
-        endpoint.beginFixedElement(&element);
+        element = endpoint.beginFixedElement(element);
       }
 
       callback(endpoint, value);
 
       if (first) {
-        endpoint.endElement(&element);
+        element = endpoint.endElement(element);
       } else {
-        endpoint.endFixedElement(&element);
+        endpoint.endFixedElement(element);
       }
 
       first = false;

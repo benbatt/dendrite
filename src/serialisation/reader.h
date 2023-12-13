@@ -21,14 +21,14 @@ public:
 
   Reader(Stream& stream);
 
-  struct Chunk
+  struct Element
   {
     Stream::pos_type mBodyStart;
     Stream::off_type mBodySize;
   };
 
-  Chunk beginChunk(ChunkID id);
-  void endChunk(const Chunk& chunk);
+  Element beginChunk(ChunkID id);
+  void endChunk(const Element& element);
   void beginObject(Model::Sketch** sketch);
   void endObject(Model::Sketch* sketch);
 
@@ -62,10 +62,10 @@ public:
     }
   }
 
-  void beginElement(Element* element);
-  void beginFixedElement(Element* element);
-  void endElement(Element* element);
-  void endFixedElement(Element* element);
+  Element beginElement();
+  Element beginFixedElement(const Element& definition);
+  Element endElement(const Element& element);
+  void endFixedElement(const Element& element);
 
   template <class TModel>
   void id(ID<TModel>* id)
