@@ -301,8 +301,10 @@ public:
   {
     for (auto current : sketch.mModel->paths()) {
       for (const Model::Path::Entry& entry : current.second->entries()) {
-        drawAddHandle(context, 10, sketch.mModel->controlPoint(entry.mPreControl)->position(), false);
-        drawAddHandle(context, 10, sketch.mModel->controlPoint(entry.mPostControl)->position(), false);
+        drawAddHandle(context, 10, sketch.mModel->controlPoint(entry.mPreControl)->position(),
+          sketch.mHoverHandle == entry.mPreControl);
+        drawAddHandle(context, 10, sketch.mModel->controlPoint(entry.mPostControl)->position(),
+          sketch.mHoverHandle == entry.mPostControl);
       }
     }
 
@@ -320,6 +322,7 @@ public:
   {
     if (sketch.mHoverHandle) {
       addNode(sketch, sketch.mHoverHandle);
+      sketch.mHoverHandle = Sketch::Handle();
     }
   }
 
