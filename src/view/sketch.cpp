@@ -17,6 +17,7 @@ enum class HandleStyle
   Smooth,
   Sharp,
   Control,
+  Add,
 };
 
 using NodeType = Model::Node::Type;
@@ -73,6 +74,36 @@ void drawHandle(const Cairo::RefPtr<Cairo::Context>& context, HandleStyle style,
       context->arc(position.x, position.y, HalfSize / 2, 0, 2 * M_PI);
       context->close_path();
       break;
+    case HandleStyle::Add:
+      {
+        const float Thickness = 2;
+        const float ArmLength = HalfSize - (Thickness / 2);
+
+        context->move_to(position.x - (Thickness / 2), position.y - (Thickness / 2));
+
+        // Up
+        context->rel_line_to(0, -ArmLength);
+        context->rel_line_to(Thickness, 0);
+        context->rel_line_to(0, ArmLength);
+
+        // Right
+        context->rel_line_to(ArmLength, 0);
+        context->rel_line_to(0, Thickness);
+        context->rel_line_to(-ArmLength, 0);
+
+        // Down
+        context->rel_line_to(0, ArmLength);
+        context->rel_line_to(-Thickness, 0);
+        context->rel_line_to(0, -ArmLength);
+
+        // Left
+        context->rel_line_to(-ArmLength, 0);
+        context->rel_line_to(0, -Thickness);
+        context->rel_line_to(ArmLength, 0);
+
+        context->close_path();
+      }
+      break;
   }
 
   context->set_source_rgb(0, 0, 0);
@@ -86,26 +117,6 @@ void drawHandle(const Cairo::RefPtr<Cairo::Context>& context, HandleStyle style,
   }
 
   context->fill();
-}
-
-void drawAddHandle(const Cairo::RefPtr<Cairo::Context>& context, double size, const Point& position, bool hover)
-{
-  float halfSize = size / 2;
-
-  context->move_to(position.x - halfSize, position.y);
-  context->line_to(position.x + halfSize, position.y);
-
-  context->move_to(position.x, position.y - halfSize);
-  context->line_to(position.x, position.y + halfSize);
-
-  if (hover) {
-    context->set_source_rgb(1, 1, 1);
-  } else {
-    context->set_source_rgb(0, 0, 0);
-  }
-
-  context->set_line_width(2);
-  context->stroke();
 }
 
 class SketchModePlace : public Sketch::Mode
@@ -301,9 +312,9 @@ public:
   {
     for (auto current : sketch.mModel->paths()) {
       for (const Model::Path::Entry& entry : current.second->entries()) {
-        drawAddHandle(context, 10, sketch.mModel->controlPoint(entry.mPreControl)->position(),
+        drawHandle(context, HandleStyle::Add, sketch.mModel->controlPoint(entry.mPreControl)->position(),
           sketch.mHoverHandle == entry.mPreControl);
-        drawAddHandle(context, 10, sketch.mModel->controlPoint(entry.mPostControl)->position(),
+        drawHandle(context, HandleStyle::Add, sketch.mModel->controlPoint(entry.mPostControl)->position(),
           sketch.mHoverHandle == entry.mPostControl);
       }
     }
