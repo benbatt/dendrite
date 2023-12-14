@@ -43,15 +43,6 @@ Glib::RefPtr<Application> Application::create()
 void Application::on_activate()
 {
   mModel = new Model::Sketch;
-
-  {
-    auto controller = Controller::Sketch(&mUndoManager, mModel);
-    auto pathController = controller.controllerForPath(controller.addPath());
-
-    pathController.addSymmetricNode(0, { 30, 20 }, { 20, 10 });
-    pathController.addSymmetricNode(1, { 60, 30 }, { 50, 20 });
-  }
-
   addWindow(mModel);
 }
 

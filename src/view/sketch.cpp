@@ -136,13 +136,15 @@ public:
 
   void begin(Sketch& sketch) override
   {
+    mPreviousCursor = sketch.get_cursor();
     sketch.set_cursor("none");
+
     setDirectionConstraint(sketch);
   }
 
   void end(Sketch& sketch) override
   {
-    sketch.set_cursor("");
+    sketch.set_cursor(mPreviousCursor);
   }
 
   void draw(Sketch& sketch, const Cairo::RefPtr<Cairo::Context>& context, int width, int height) override
@@ -256,6 +258,7 @@ private:
     sketch.queue_draw();
   }
 
+  Glib::RefPtr<Gdk::Cursor> mPreviousCursor;
   Vector mDirectionConstraint;
   bool mConstrainDirection;
   Handle mDragHandle;
@@ -308,6 +311,17 @@ class SketchModeAdd : public Sketch::Mode
 public:
   static SketchModeAdd sInstance;
 
+  void begin(Sketch& sketch) override
+  {
+    mPreviousCursor = sketch.get_cursor();
+    sketch.set_cursor("crosshair");
+  }
+
+  void end(Sketch& sketch) override
+  {
+    sketch.set_cursor(mPreviousCursor);
+  }
+
   void draw(Sketch& sketch, const Cairo::RefPtr<Cairo::Context>& context, int width, int height) override
   {
     for (auto current : sketch.mModel->paths()) {
@@ -334,6 +348,16 @@ public:
     if (sketch.mHoverHandle) {
       addNode(sketch, sketch.mHoverHandle);
       sketch.mHoverHandle = Sketch::Handle();
+    } else {
+      Point position{x, y};
+
+      sketch.mUndoManager->beginGroup();
+
+      mCurrentPath = sketch.mController->addPath();
+      sketch.mController->controllerForPath(mCurrentPath).addSymmetricNode(0, position, position);
+
+      mAdjustHandlesMode.setDragHandle(sketch.mModel->path(mCurrentPath)->entries()[0].mPostControl);
+      sketch.pushMode(&mAdjustHandlesMode);
     }
   }
 
@@ -433,6 +457,7 @@ private:
   SketchModePlace mSetPositionMode;
   SketchModePlace mAdjustHandlesMode;
   ID<Model::Path> mCurrentPath;
+  Glib::RefPtr<Gdk::Cursor> mPreviousCursor;
 };
 
 SketchModeAdd SketchModeAdd::sInstance;
