@@ -65,6 +65,7 @@ void Application::on_startup()
   add_action("save", sigc::mem_fun(*this, &Application::onSave));
   add_action("open", sigc::mem_fun(*this, &Application::onOpen));
   mViewContext.mAddAction = add_action("add");
+  mViewContext.mDeleteAction = add_action("delete");
   mViewContext.mMoveAction = add_action("move");
   mViewContext.mCancelAction = add_action("cancel");
   mViewContext.mViewAction = add_action("view");
@@ -74,6 +75,7 @@ void Application::on_startup()
   set_accel_for_action("app.save", "<Control>S");
   set_accel_for_action("app.open", "<Control>O");
   set_accel_for_action("app.add", "A");
+  set_accel_for_action("app.delete", "D");
   set_accel_for_action("app.move", "M");
   set_accel_for_action("app.cancel", "Escape");
   set_accel_for_action("app.view", "space");

@@ -18,6 +18,7 @@ enum class HandleStyle
   Sharp,
   Control,
   Add,
+  Delete,
 };
 
 using NodeType = Model::Node::Type;
@@ -75,11 +76,20 @@ void drawHandle(const Cairo::RefPtr<Cairo::Context>& context, HandleStyle style,
       context->close_path();
       break;
     case HandleStyle::Add:
+    case HandleStyle::Delete:
       {
         const float Thickness = 2;
         const float ArmLength = HalfSize - (Thickness / 2);
 
-        context->move_to(position.x - (Thickness / 2), position.y - (Thickness / 2));
+        context->save();
+
+        context->translate(position.x, position.y);
+
+        if (style == HandleStyle::Delete) {
+          context->rotate(M_PI / 4);
+        }
+
+        context->move_to(-(Thickness / 2), -(Thickness / 2));
 
         // Up
         context->rel_line_to(0, -ArmLength);
@@ -102,6 +112,8 @@ void drawHandle(const Cairo::RefPtr<Cairo::Context>& context, HandleStyle style,
         context->rel_line_to(ArmLength, 0);
 
         context->close_path();
+
+        context->restore();
       }
       break;
   }
@@ -149,6 +161,8 @@ public:
 
   void draw(Sketch& sketch, const Cairo::RefPtr<Cairo::Context>& context, int width, int height) override
   {
+    sketch.drawTangents(context);
+
     if (mConstrainDirection && mDragHandle.refersTo(Handle::ControlPoint)) {
       const Model::ControlPoint* controlPoint = mDragHandle.controlPoint(sketch.mModel);
 
@@ -273,6 +287,8 @@ public:
 
   void draw(Sketch& sketch, const Cairo::RefPtr<Cairo::Context>& context, int width, int height) override
   {
+    sketch.drawTangents(context);
+
     for (auto current : sketch.mModel->nodes()) {
       bool hover = sketch.mHoverHandle == current.first;
       drawHandle(context, handleStyle(current.second->type(), Handle::Node), current.second->position(), hover);
@@ -324,6 +340,8 @@ public:
 
   void draw(Sketch& sketch, const Cairo::RefPtr<Cairo::Context>& context, int width, int height) override
   {
+    sketch.drawTangents(context);
+
     for (auto current : sketch.mModel->paths()) {
       for (const Model::Path::Entry& entry : current.second->entries()) {
         drawHandle(context, HandleStyle::Add, sketch.mModel->controlPoint(entry.mPreControl)->position(),
@@ -518,6 +536,44 @@ private:
 
 SketchModeAdd SketchModeAdd::sInstance;
 
+class SketchModeDelete : public Sketch::Mode
+{
+public:
+  static SketchModeDelete sInstance;
+
+  void begin(Sketch& sketch) override
+  {
+    mPreviousCursor = sketch.get_cursor();
+    sketch.set_cursor("crosshair");
+  }
+
+  void end(Sketch& sketch) override
+  {
+    sketch.set_cursor(mPreviousCursor);
+  }
+
+  void draw(Sketch& sketch, const Cairo::RefPtr<Cairo::Context>& context, int width, int height) override
+  {
+    for (auto current : sketch.mModel->nodes()) {
+      drawHandle(context, HandleStyle::Delete, current.second->position(), sketch.mHoverHandle == current.first);
+    }
+  }
+
+  void onPointerPressed(Sketch& sketch, int count, double x, double y) override
+  {
+    if (sketch.mHoverHandle.refersTo(Sketch::Handle::Node)) {
+      sketch.mController->removeNode(sketch.mHoverHandle.id<Model::Node>());
+      sketch.mHoverHandle = Sketch::Handle();
+      sketch.queue_draw();
+    }
+  }
+
+private:
+  Glib::RefPtr<Gdk::Cursor> mPreviousCursor;
+};
+
+SketchModeDelete SketchModeDelete::sInstance;
+
 Sketch::Sketch(Model::Sketch* model, Controller::UndoManager *undoManager, Context& context)
   : mModel(nullptr)
   , mController(nullptr)
@@ -528,6 +584,7 @@ Sketch::Sketch(Model::Sketch* model, Controller::UndoManager *undoManager, Conte
   set_draw_func(sigc::mem_fun(*this, &Sketch::onDraw));
 
   context.addAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::activateAddMode));
+  context.deleteAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::activateDeleteMode));
   context.moveAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::activateMoveMode));
   context.viewAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::activateViewMode));
   context.cancelAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::onCancel));
@@ -587,27 +644,30 @@ void Sketch::onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width, int
       context->set_line_width(2);
       context->stroke();
     }
-
-    if (!mModeStack.empty()) {
-      for (const Model::Path::Entry& entry : entries) {
-        const Point& nodePosition = mModel->node(entry.mNode)->position();
-        const Point& preControl = mModel->controlPoint(entry.mPreControl)->position();
-        const Point& postControl = mModel->controlPoint(entry.mPostControl)->position();
-
-        context->move_to(preControl.x, preControl.y);
-        context->line_to(nodePosition.x, nodePosition.y);
-        context->line_to(postControl.x, postControl.y);
-      }
-
-      context->set_source_rgb(0, 0, 0);
-      context->set_line_width(0.5);
-      context->stroke();
-    }
   }
 
   for (auto it = mModeStack.rbegin(); it != mModeStack.rend(); ++it) {
     (*it)->draw(*this, context, width, height);
   }
+}
+
+void Sketch::drawTangents(const Cairo::RefPtr<Cairo::Context>& context)
+{
+  for (auto current : mModel->paths()) {
+    for (const Model::Path::Entry& entry : current.second->entries()) {
+      const Point& nodePosition = mModel->node(entry.mNode)->position();
+      const Point& preControl = mModel->controlPoint(entry.mPreControl)->position();
+      const Point& postControl = mModel->controlPoint(entry.mPostControl)->position();
+
+      context->move_to(preControl.x, preControl.y);
+      context->line_to(nodePosition.x, nodePosition.y);
+      context->line_to(postControl.x, postControl.y);
+    }
+  }
+
+  context->set_source_rgb(0, 0, 0);
+  context->set_line_width(0.5);
+  context->stroke();
 }
 
 void Sketch::onPointerPressed(int count, double x, double y)
@@ -662,6 +722,12 @@ void Sketch::activateAddMode(const Glib::VariantBase&)
 {
   cancelModeStack();
   pushMode(&SketchModeAdd::sInstance);
+}
+
+void Sketch::activateDeleteMode(const Glib::VariantBase&)
+{
+  cancelModeStack();
+  pushMode(&SketchModeDelete::sInstance);
 }
 
 void Sketch::activateMoveMode(const Glib::VariantBase&)

@@ -64,15 +64,18 @@ public:
 private:
   friend class SketchModeMove;
   friend class SketchModeAdd;
+  friend class SketchModeDelete;
   friend class SketchModePlace;
 
   void onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width, int height);
+  void drawTangents(const Cairo::RefPtr<Cairo::Context>& context);
   void onPointerPressed(int count, double x, double y);
   void onSecondaryPointerPressed(int count, double x, double y);
   void onPointerMotion(double x, double y);
   bool onKeyPressed(guint keyval, guint keycode, Gdk::ModifierType state);
   void refreshHandles();
   void activateAddMode(const Glib::VariantBase&);
+  void activateDeleteMode(const Glib::VariantBase&);
   void activateMoveMode(const Glib::VariantBase&);
   void activateViewMode(const Glib::VariantBase&);
   void onCancel(const Glib::VariantBase&);
