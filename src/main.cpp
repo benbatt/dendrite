@@ -53,6 +53,7 @@ void Application::addWindow(Model::Sketch* model)
 
   mainWindow->signal_hide().connect([mainWindow]() { delete mainWindow; });
 
+  mainWindow->maximize();
   mainWindow->present();
 }
 
