@@ -39,8 +39,7 @@ public:
 };
 
 UndoManager::UndoManager()
-  : mCurrentGroup(nullptr)
-  , mEnableMerge(false)
+  : mEnableMerge(false)
 {
 }
 
@@ -56,9 +55,11 @@ void UndoManager::pushCommand(UndoCommand* command)
 {
   command->redo();
 
+  UndoGroup* currentGroup = !mGroups.empty() ? mGroups.top() : nullptr;
+
   if (mEnableMerge && command->id() != UndoCommand::InvalidID) {
-    UndoCommand* latest = mCurrentGroup
-      ? (!mCurrentGroup->mChildren.empty() ? mCurrentGroup->mChildren.back() : nullptr)
+    UndoCommand* latest = currentGroup
+      ? (!currentGroup->mChildren.empty() ? currentGroup->mChildren.back() : nullptr)
       : (!mUndoCommands.empty() ? mUndoCommands.top() : nullptr);
 
     if (latest && latest->id() == command->id() && latest->mergeWith(command)) {
@@ -67,8 +68,8 @@ void UndoManager::pushCommand(UndoCommand* command)
     }
   }
 
-  if (mCurrentGroup) {
-    mCurrentGroup->mChildren.push_back(command);
+  if (currentGroup) {
+    currentGroup->mChildren.push_back(command);
   } else {
     mUndoCommands.push(command);
   }
@@ -112,28 +113,25 @@ void UndoManager::redo()
 
 void UndoManager::beginGroup()
 {
-  if (!mCurrentGroup) {
-    UndoGroup *group = new UndoGroup;
-    pushCommand(group);
+  UndoGroup *group = new UndoGroup;
+  pushCommand(group);
 
-    mCurrentGroup = group;
-  }
+  mGroups.push(group);
 }
 
 void UndoManager::cancelGroup()
 {
-  if (mCurrentGroup) {
-    mCurrentGroup->undo();
-    mCurrentGroup = nullptr;
-
+  if (!mGroups.empty()) {
+    mGroups.top()->undo();
+    mGroups.pop();
     mUndoCommands.pop();
   }
 }
 
 void UndoManager::endGroup()
 {
-  if (mCurrentGroup) {
-    mCurrentGroup = nullptr;
+  if (!mGroups.empty()) {
+    mGroups.pop();
   }
 }
 

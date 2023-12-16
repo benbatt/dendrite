@@ -24,8 +24,11 @@ public:
   Node controllerForNode(const ID<Model::Node>& id);
   ControlPoint controllerForControlPoint(const ID<Model::ControlPoint>& id);
 
+  void removeNode(const ID<Model::Node>& id);
+
 private:
   friend class AddNodeCommand;
+  friend class RemoveNodeCommand;
 
   // Node::Accessor and ControlPoint::Accessor
   Model::ControlPoint* getControlPoint(const ID<Model::ControlPoint>& id) override;

@@ -44,6 +44,49 @@ ControlPoint Sketch::controllerForControlPoint(const ID<Model::ControlPoint>& id
   return ControlPoint(mUndoManager, this, id);
 }
 
+void Sketch::removeNode(const ID<Model::Node>& nodeID)
+{
+  const Model::Node* node = mModel->node(nodeID);
+
+  mUndoManager->beginGroup();
+
+  // Destroy path entries
+  for (auto current : mModel->paths()) {
+    const Model::Path::EntryList& entries = current.second->entries();
+
+    for (int i = 0; i < entries.size(); ) {
+      if (entries[i].mNode == nodeID) {
+        controllerForPath(current.first).removeEntry(i);
+      } else {
+        ++i;
+      }
+    }
+  }
+
+  // Destroy control points
+  for (auto controlPointID : node->controlPoints()) {
+    Point position = mModel->controlPoint(controlPointID)->position();
+
+    mUndoManager->pushCommand(
+      [=]() { destroyControlPoint(controlPointID); },
+      [=]() { createControlPoint(controlPointID, nodeID, position); },
+      "Destroy control point");
+  }
+
+  // Destroy node
+  {
+    Point position = node->position();
+    Model::Node::Type type = node->type();
+
+    mUndoManager->pushCommand(
+      [=]() { destroyNode(nodeID); },
+      [=]() { createNode(nodeID, position, type); },
+      "Destroy node");
+  }
+
+  mUndoManager->endGroup();
+}
+
 Model::Node* Sketch::getNode(const ID<Model::Node>& id)
 {
   return mModel->node(id);

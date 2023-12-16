@@ -28,10 +28,11 @@ public:
     {
       Node,
       ControlPoint,
+      Null,
     };
 
     Handle()
-      : mType(Node)
+      : mType(Null)
       , mID(0)
     {}
 
@@ -77,6 +78,7 @@ private:
   void onCancel(const Glib::VariantBase&);
   void setModel(Model::Sketch* model);
 
+  Handle findHandle(double x, double y, Handle::Type type, const Model::Node::ControlPointList& ignoreControlPoints);
   Handle findHandle(double x, double y);
 
   Point handlePosition(const Handle& handle) const;

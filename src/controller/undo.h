@@ -114,7 +114,7 @@ private:
   std::stack<UndoCommand*> mUndoCommands;
   std::stack<UndoCommand*> mRedoCommands;
   Signal mSignalChanged;
-  UndoGroup* mCurrentGroup;
+  std::stack<UndoGroup*> mGroups;
   bool mEnableMerge;
 };
 

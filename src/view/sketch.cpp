@@ -381,17 +381,53 @@ public:
   void onChildPopped(Sketch& sketch, Sketch::Mode* child) override
   {
     if (child == &mSetPositionMode) {
+      Model::Node* node = mSetPositionMode.dragHandle().node(sketch.mModel);
       ID<Model::Node> nodeID = mSetPositionMode.dragHandle().id<Model::Node>();
-
       const Model::Path::EntryList& entries = sketch.mModel->path(mCurrentPath)->entries();
 
-      if (nodeID == entries.front().mNode) {
-        mAdjustHandlesMode.setDragHandle(entries.front().mPreControl);
-      } else if (nodeID == entries.back().mNode) {
-        mAdjustHandlesMode.setDragHandle(entries.back().mPostControl);
-      }
+      Handle attachHandle = sketch.findHandle(node->position().x, node->position().y, Handle::ControlPoint,
+          node->controlPoints());
 
-      sketch.pushMode(&mAdjustHandlesMode);
+      if (attachHandle) {
+        ID<Model::ControlPoint> attachID = attachHandle.id<Model::ControlPoint>();
+
+        const Model::Path* attachPath;
+        int entryIndex;
+        std::tie(attachPath, entryIndex) = findPathEntry(sketch.mModel, attachID);
+
+        if (attachPath) {
+          Model::Path::Entry newEntry = attachPath->entries()[entryIndex];
+          Controller::Path pathController = sketch.mController->controllerForPath(mCurrentPath);
+
+          if (nodeID == entries.front().mNode) {
+            if (newEntry.mPreControl == attachID) {
+              std::swap(newEntry.mPreControl, newEntry.mPostControl);
+            }
+
+            sketch.mController->removeNode(nodeID);
+            pathController.addEntry(0, newEntry);
+
+            sketch.mUndoManager->endGroup();
+          } else if (nodeID == entries.back().mNode) {
+            if (newEntry.mPostControl == attachID) {
+              std::swap(newEntry.mPreControl, newEntry.mPostControl);
+            }
+
+            sketch.mController->removeNode(nodeID);
+            pathController.addEntry(entries.size(), newEntry);
+
+            sketch.mUndoManager->endGroup();
+          }
+        }
+      } else {
+        if (nodeID == entries.front().mNode) {
+          mAdjustHandlesMode.setDragHandle(entries.front().mPreControl);
+        } else if (nodeID == entries.back().mNode) {
+          mAdjustHandlesMode.setDragHandle(entries.back().mPostControl);
+        }
+
+        sketch.pushMode(&mAdjustHandlesMode);
+      }
     } else if (child == &mAdjustHandlesMode) {
       sketch.mUndoManager->endGroup();
 
@@ -452,6 +488,26 @@ private:
 
       break;
     }
+  }
+
+  std::tuple<const Model::Path*, int> findPathEntry(const Model::Sketch* sketch,
+    const ID<Model::ControlPoint>& controlPoint)
+  {
+    for (auto current : sketch->paths()) {
+      const Model::Path* path = current.second;
+      const Model::Path::EntryList& entries = path->entries();
+
+      auto it = std::find_if(entries.begin(), entries.end(),
+        [&controlPoint](const Model::Path::Entry& entry) {
+          return controlPoint == entry.mPreControl || controlPoint == entry.mPostControl;
+        });
+
+      if (it != entries.end()) {
+        return std::make_tuple(path, std::distance(entries.begin(), it));
+      }
+    }
+
+    return std::make_tuple(nullptr, -1);
   }
 
   SketchModePlace mSetPositionMode;
@@ -641,7 +697,8 @@ void Sketch::setModel(Model::Sketch* model)
   refreshHandles();
 }
 
-Handle Sketch::findHandle(double x, double y)
+Handle Sketch::findHandle(double x, double y, Handle::Type type,
+  const Model::Node::ControlPointList& ignorePoints)
 {
   const float Radius = HandleSize / 2;
 
@@ -650,19 +707,30 @@ Handle Sketch::findHandle(double x, double y)
       && position.y - Radius <= y && y < position.y + Radius;
   };
 
-  for (auto current : mModel->controlPoints()) {
-    if (withinRadius(current.second->position())) {
-      return current.first;
+  if (type == Handle::ControlPoint || type == Handle::Null) {
+    for (auto current : mModel->controlPoints()) {
+      bool ignore = std::find(ignorePoints.begin(), ignorePoints.end(), current.first) != ignorePoints.end();
+
+      if (!ignore && withinRadius(current.second->position())) {
+        return current.first;
+      }
     }
   }
 
-  for (auto current : mModel->nodes()) {
-    if (withinRadius(current.second->position())) {
-      return current.first;
+  if (type == Handle::Node || type == Handle::Null) {
+    for (auto current : mModel->nodes()) {
+      if (withinRadius(current.second->position())) {
+        return current.first;
+      }
     }
   }
 
   return Handle();
+}
+
+Handle Sketch::findHandle(double x, double y)
+{
+  return findHandle(x, y, Handle::Null, {});
 }
 
 Point Sketch::handlePosition(const Handle& handle) const

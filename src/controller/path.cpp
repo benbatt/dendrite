@@ -175,6 +175,50 @@ void Path::addEntry(int index, const Model::Path::Entry& entry)
   mUndoManager->pushCommand(new AddEntryCommand(mAccessor, mID, index, entry));
 }
 
+class RemoveEntryCommand : public UndoCommand
+{
+public:
+  RemoveEntryCommand(Path::Accessor* accessor, const ID<Model::Path>& id, int removeIndex)
+    : mAccessor(accessor)
+    , mID(id)
+    , mRemoveIndex(removeIndex)
+  {
+    mEntry = Path::entries(mAccessor->getPath(mID))[mRemoveIndex];
+  }
+
+  void redo() override
+  { 
+    Model::Path* model = mAccessor->getPath(mID);
+    Model::Path::EntryList& entries = Path::entries(model);
+
+    entries.erase(std::next(entries.begin(), mRemoveIndex));
+  }
+
+  void undo() override
+  { 
+    Model::Path* model = mAccessor->getPath(mID);
+    Model::Path::EntryList& entries = Path::entries(model);
+
+    entries.insert(std::next(entries.begin(), mRemoveIndex), mEntry);
+  }
+
+  std::string description() override
+  {
+    return "Remove path entry";
+  }
+
+private:
+  Path::Accessor* mAccessor;
+  Model::Path::Entry mEntry;
+  ID<Model::Path> mID;
+  int mRemoveIndex;
+};
+
+void Path::removeEntry(int index)
+{
+  mUndoManager->pushCommand(new RemoveEntryCommand(mAccessor, mID, index));
+}
+
 void Path::setClosed(bool closed)
 {
   Model::Path* path = mAccessor->getPath(mID);

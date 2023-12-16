@@ -37,12 +37,14 @@ public:
   void addSharpNode(int index, const Point& position);
 
   void addEntry(int index, const Model::Path::Entry& entry);
+  void removeEntry(int index);
 
   void setClosed(bool closed);
 
 private:
   friend class AddNodeCommand;
   friend class AddEntryCommand;
+  friend class RemoveEntryCommand;
 
   static Model::Path::EntryList& entries(Model::Path* path);
 
