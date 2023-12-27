@@ -219,6 +219,39 @@ void Path::removeEntry(int index)
   mUndoManager->pushCommand(new RemoveEntryCommand(mAccessor, mID, index));
 }
 
+void Path::setStrokeColour(const Colour& colour)
+{
+  auto accessor = mAccessor;
+  auto id = mID;
+  auto oldColour = accessor->getPath(id)->mStrokeColour;
+
+  mUndoManager->pushCommand(
+      [=]() { accessor->getPath(id)->mStrokeColour = colour; },
+      [=]() { accessor->getPath(id)->mStrokeColour = oldColour; },
+      "Set stroke colour");
+}
+
+void Path::setFillColour(const Colour& colour)
+{
+  auto accessor = mAccessor;
+  auto id = mID;
+  auto oldColour = accessor->getPath(id)->mFillColour;
+  auto oldFlags = accessor->getPath(id)->mFlags;
+
+  mUndoManager->pushCommand(
+      [=]() {
+        Model::Path* path = accessor->getPath(id);
+        path->mFillColour = colour;
+        path->mFlags |= Model::Path::Flag_Filled;
+      },
+      [=]() {
+        Model::Path* path = accessor->getPath(id);
+        path->mFillColour = oldColour;
+        path->mFlags = oldFlags;
+      },
+      "Set fill colour");
+}
+
 void Path::setClosed(bool closed)
 {
   Model::Path* path = mAccessor->getPath(mID);

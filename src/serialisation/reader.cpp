@@ -13,6 +13,7 @@ namespace Serialisation
 
 Reader::Reader(Stream& stream)
   : mStream(stream)
+  , mVersion(0)
 {
 }
 

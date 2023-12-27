@@ -23,7 +23,9 @@ private:
   template <class TEndpoint>
   static void processControlPoint(TEndpoint& endpoint, Model::ControlPoint* controlPoint);
   template <class TEndpoint>
-  static void processPath(TEndpoint& endpoint, Model::Path* path);
+  static void processPathChunk(TEndpoint& endpoint, Model::Path* path);
+  template <class TEndpoint>
+  static void processPathElement(TEndpoint& endpoint, Model::Path* path);
 };
 
 }

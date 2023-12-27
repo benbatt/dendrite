@@ -3,6 +3,11 @@
 #include "view/sketch.h"
 
 #include <gtkmm/applicationwindow.h>
+#include <gtkmm/box.h>
+#include <gtkmm/colorbutton.h>
+#include <gtkmm/frame.h>
+#include <gtkmm/grid.h>
+#include <gtkmm/label.h>
 
 namespace Model
 {
@@ -23,6 +28,13 @@ public:
 private:
   void onReleased(int count, double x, double y);
 
+  Gtk::Box mMainBox;
   View::Sketch mSketchView;
+  Gtk::Frame mToolFrame;
+  Gtk::Grid mToolGrid;
+  Gtk::Label mStrokeLabel;
+  Gtk::ColorButton mStrokeColourButton;
+  Gtk::Label mFillLabel;
+  Gtk::ColorButton mFillColourButton;
   Controller::UndoManager* mUndoManager;
 };

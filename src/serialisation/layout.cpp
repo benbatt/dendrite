@@ -135,7 +135,28 @@ void fixedElements(TEndpoint& endpoint, std::vector<TValue>* vector, TCallback c
     });
 }
 
-static const unsigned int CurrentVersion = 1;
+template <class TEndpoint, class TModel, class TCallback>
+void chunks(TEndpoint& endpoint, std::unordered_map<ID<TModel>, TModel*>* map, ChunkID listID,
+  TCallback callback)
+{
+  auto listChunk = beginListChunk(endpoint, "LIST", listID);
+
+  endpoint.modelMapChunks(map, ChunkID("HEAD").mValue, ChunkID("ELEM").mValue,
+    [&endpoint, callback](TModel* model) {
+      callback(endpoint, model);
+    });
+
+  endpoint.endChunk(listChunk);
+}
+
+}
+
+namespace Version
+{
+
+static const unsigned int Initial = 1;
+static const unsigned int PathChunks = 2;
+static const unsigned int Current = 2;
 
 }
 
@@ -147,8 +168,9 @@ Model::Sketch* Layout::process(TEndpoint& endpoint, Model::Sketch* sketch)
   // Format info
   auto formatInfoChunk = beginChunk(endpoint, "FRMT");
 
-  unsigned int version = CurrentVersion;
+  unsigned int version = Version::Current;
   endpoint.asUint32(&version);
+  endpoint.setVersion(version);
 
   endpoint.endChunk(formatInfoChunk);
 
@@ -172,11 +194,15 @@ Model::Sketch* Layout::process(TEndpoint& endpoint, Model::Sketch* sketch)
   endpoint.endChunk(controlPointsChunk);
 
   // Paths
-  auto pathsChunk = beginChunk(endpoint, "PTHS");
+  if (endpoint.version() >= Version::PathChunks) {
+    chunks(endpoint, &sketch->mPaths, "PTHS", processPathChunk<TEndpoint>);
+  } else {
+    auto pathsChunk = beginChunk(endpoint, "PTHS");
 
-  variableElements(endpoint, &sketch->mPaths, processPath<TEndpoint>);
+    variableElements(endpoint, &sketch->mPaths, processPathElement<TEndpoint>);
 
-  endpoint.endChunk(pathsChunk);
+    endpoint.endChunk(pathsChunk);
+  }
 
   endpoint.endObject(sketch);
 
@@ -207,7 +233,26 @@ void Layout::processControlPoint(TEndpoint& endpoint, Model::ControlPoint* contr
 }
 
 template <class TEndpoint>
-void Layout::processPath(TEndpoint& endpoint, Model::Path* path)
+void Layout::processPathChunk(TEndpoint& endpoint, Model::Path* path)
+{
+  auto headElement = endpoint.beginElement();
+
+  endpoint.asUint32(&path->mFlags);
+  endpoint.asUint32(&path->mStrokeColour.mValue);
+  endpoint.asUint32(&path->mFillColour.mValue);
+
+  endpoint.endElement(headElement);
+
+  fixedElements(endpoint, &path->mEntries,
+    [](TEndpoint& endpoint, Model::Path::Entry* entry) {
+      endpoint.id(&entry->mNode);
+      endpoint.id(&entry->mPreControl);
+      endpoint.id(&entry->mPostControl);
+    });
+}
+
+template <class TEndpoint>
+void Layout::processPathElement(TEndpoint& endpoint, Model::Path* path)
 {
   endpoint.asUint32(&path->mFlags);
 

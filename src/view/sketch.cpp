@@ -161,8 +161,6 @@ public:
 
   void draw(Sketch& sketch, const Cairo::RefPtr<Cairo::Context>& context, int width, int height) override
   {
-    sketch.drawTangents(context);
-
     if (mConstrainDirection && mDragHandle.refersTo(Handle::ControlPoint)) {
       const Model::ControlPoint* controlPoint = mDragHandle.controlPoint(sketch.mModel);
 
@@ -580,6 +578,8 @@ Sketch::Sketch(Model::Sketch* model, Controller::UndoManager *undoManager, Conte
   , mUndoManager(undoManager)
 {
   set_focusable(true);
+  set_hexpand(true);
+  set_vexpand(true);
 
   set_draw_func(sigc::mem_fun(*this, &Sketch::onDraw));
 
@@ -612,37 +612,79 @@ Sketch::Sketch(Model::Sketch* model, Controller::UndoManager *undoManager, Conte
   setModel(model);
 }
 
+bool pathToCairo(const Cairo::RefPtr<Cairo::Context>& context, const Model::Path* path, const Model::Sketch* sketch)
+{
+  const Model::Path::EntryList& entries = path->entries();
+
+  if (entries.size() > 1) {
+    const Point& position = sketch->node(entries[0].mNode)->position();
+
+    context->move_to(position.x, position.y);
+
+    for (int i = 1; i < entries.size(); ++i) {
+      const Point& control1 = sketch->controlPoint(entries[i - 1].mPostControl)->position();
+      const Point& control2 = sketch->controlPoint(entries[i].mPreControl)->position();
+      const Point& position = sketch->node(entries[i].mNode)->position();
+
+      context->curve_to(control1.x, control1.y, control2.x, control2.y, position.x, position.y);
+    }
+
+    if (path->isClosed()) {
+      const Point& control1 = sketch->controlPoint(entries.back().mPostControl)->position();
+      const Point& control2 = sketch->controlPoint(entries.front().mPreControl)->position();
+      const Point& position = sketch->node(entries.front().mNode)->position();
+
+      context->curve_to(control1.x, control1.y, control2.x, control2.y, position.x, position.y);
+      context->close_path();
+    }
+
+    return true;
+  } else {
+    return false;
+  }
+}
+
 void Sketch::onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width, int height)
 {
   for (auto current : mModel->paths()) {
     const Model::Path* path = current.second;
-    const Model::Path::EntryList& entries = path->entries();
 
-    if (entries.size() > 1) {
-      const Point& position = mModel->node(entries[0].mNode)->position();
+    bool drawExtents = (current.first == mSelectedPath);
+    double xMin, xMax, yMin, yMax;
 
-      context->move_to(position.x, position.y);
-
-      for (int i = 1; i < entries.size(); ++i) {
-        const Point& control1 = mModel->controlPoint(entries[i - 1].mPostControl)->position();
-        const Point& control2 = mModel->controlPoint(entries[i].mPreControl)->position();
-        const Point& position = mModel->node(entries[i].mNode)->position();
-
-        context->curve_to(control1.x, control1.y, control2.x, control2.y, position.x, position.y);
+    if (pathToCairo(context, path, mModel)) {
+      if (drawExtents) {
+        context->get_path_extents(xMin, yMin, xMax, yMax);
       }
 
-      if (path->isClosed()) {
-        const Point& control1 = mModel->controlPoint(entries.back().mPostControl)->position();
-        const Point& control2 = mModel->controlPoint(entries.front().mPreControl)->position();
-        const Point& position = mModel->node(entries.front().mNode)->position();
-
-        context->curve_to(control1.x, control1.y, control2.x, control2.y, position.x, position.y);
-        context->close_path();
+      {
+        const Colour& colour = path->strokeColour();
+        context->set_source_rgb(colour.red(), colour.green(), colour.blue());
+        context->set_line_width(2);
+        context->stroke_preserve();
       }
 
+      if (path->isFilled()) {
+        const Colour& colour = path->fillColour();
+        context->set_source_rgb(colour.red(), colour.green(), colour.blue());
+        context->fill();
+      }
+
+      context->begin_new_path();
+    }
+
+    if (drawExtents) {
+      static const std::vector<double> sDash{2};
+
+      context->save();
+
+      context->rectangle(xMin, yMin, xMax - xMin, yMax - yMin);
       context->set_source_rgb(0, 0, 0);
-      context->set_line_width(2);
+      context->set_line_width(1);
+      context->set_dash(sDash, 0);
       context->stroke();
+
+      context->restore();
     }
   }
 
@@ -670,10 +712,36 @@ void Sketch::drawTangents(const Cairo::RefPtr<Cairo::Context>& context)
   context->stroke();
 }
 
+ID<Model::Path> findPath(Model::Sketch* sketch, double x, double y)
+{
+  auto surface = Cairo::ImageSurface::create(Cairo::Surface::Format::A8, 1, 1);
+  auto context = Cairo::Context::create(surface);
+  context->set_line_width(4);
+
+  for (auto current : sketch->paths()) {
+    context->begin_new_path();
+
+    if (pathToCairo(context, current.second, sketch)) {
+      if (context->in_stroke(x, y)) {
+        return current.first;
+      }
+    }
+  }
+
+  return ID<Model::Path>();
+}
+
 void Sketch::onPointerPressed(int count, double x, double y)
 {
   if (!mModeStack.empty()) {
     mModeStack.front()->onPointerPressed(*this, count, x, y);
+  } else {
+    ID<Model::Path> newSelectedPath = findPath(mModel, x, y);
+
+    if (newSelectedPath != mSelectedPath) {
+      mSelectedPath = newSelectedPath;
+      queue_draw();
+    }
   }
 }
 
@@ -747,6 +815,28 @@ void Sketch::onCancel(const Glib::VariantBase&)
     mModeStack.front()->onCancel(*this);
     mModeStack.front()->end(*this);
     mModeStack.pop_front();
+
+    queue_draw();
+  }
+}
+
+void Sketch::setStrokeColour(const Gdk::RGBA& rgba)
+{
+  if (mSelectedPath) {
+    Colour colour(rgba.get_red(), rgba.get_green(), rgba.get_blue(), rgba.get_alpha());
+
+    mController->controllerForPath(mSelectedPath).setStrokeColour(colour);
+
+    queue_draw();
+  }
+}
+
+void Sketch::setFillColour(const Gdk::RGBA& rgba)
+{
+  if (mSelectedPath) {
+    Colour colour(rgba.get_red(), rgba.get_green(), rgba.get_blue(), rgba.get_alpha());
+
+    mController->controllerForPath(mSelectedPath).setFillColour(colour);
 
     queue_draw();
   }

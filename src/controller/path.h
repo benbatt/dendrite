@@ -38,6 +38,8 @@ public:
 
   void addEntry(int index, const Model::Path::Entry& entry);
   void removeEntry(int index);
+  void setStrokeColour(const Colour& colour);
+  void setFillColour(const Colour& colour);
 
   void setClosed(bool closed);
 

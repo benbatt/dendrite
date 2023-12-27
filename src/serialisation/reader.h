@@ -20,6 +20,9 @@ public:
 
   Reader(Stream& stream);
 
+  int version() const { return mVersion; }
+  void setVersion(int version) { mVersion = version; }
+
   struct Element
   {
     Stream::pos_type mBodyStart;
@@ -44,6 +47,31 @@ public:
       (*map)[ID<TModel>(i + 1)] = model;
 
       callback(model);
+    }
+  }
+
+  template<class TModel, class TCallback>
+  void modelMapChunks(std::unordered_map<ID<TModel>, TModel*>* map, uint32_t headerChunkID, uint32_t elementChunkID,
+    TCallback callback)
+  {
+    auto headerChunk = beginChunk(headerChunkID);
+
+    uint32_t size = 0;
+    read(&size);
+
+    endChunk(headerChunk);
+
+    map->reserve(size);
+
+    for (uint32_t i = 0; i < size; ++i) {
+      auto elementChunk = beginChunk(elementChunkID);
+
+      TModel* model = new TModel;
+      (*map)[ID<TModel>(i + 1)] = model;
+
+      callback(model);
+
+      endChunk(elementChunk);
     }
   }
 
@@ -95,6 +123,7 @@ public:
 
 private:
   Stream& mStream;
+  int mVersion;
 };
 
 }

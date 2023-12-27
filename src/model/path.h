@@ -1,5 +1,6 @@
 #pragma once
 
+#include "utilities/colour.h"
 #include "utilities/id.h"
 
 #include <vector>
@@ -24,7 +25,9 @@ class Path
 {
 public:
   Path()
-    : mFlags(0)
+    : mStrokeColour(0, 0, 0, 1)
+    , mFillColour(0, 0, 0, 1)
+    , mFlags(0)
   {}
 
   struct Entry
@@ -38,6 +41,9 @@ public:
 
   const EntryList& entries() const { return mEntries; }
   bool isClosed() const { return (mFlags & Flag_Closed) != 0; }
+  bool isFilled() const { return (mFlags & Flag_Filled) != 0; }
+  const Colour& strokeColour() const { return mStrokeColour; }
+  const Colour& fillColour() const { return mFillColour; }
 
 private:
   friend class Controller::Path;
@@ -45,9 +51,12 @@ private:
 
   enum {
     Flag_Closed = 0x00000001,
+    Flag_Filled = 0x00000002,
   };
 
   EntryList mEntries;
+  Colour mStrokeColour;
+  Colour mFillColour;
   unsigned int mFlags;
 };
 

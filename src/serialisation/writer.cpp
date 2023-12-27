@@ -13,6 +13,7 @@ namespace Serialisation
 
 Writer::Writer(Stream& stream)
   : mStream(stream)
+  , mVersion(0)
 {
 }
 

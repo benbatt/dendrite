@@ -22,6 +22,9 @@ public:
 
   Writer(Stream& stream);
 
+  int version() const { return mVersion; }
+  void setVersion(int version) { mVersion = version; }
+
   Stream::pos_type beginChunk(uint32_t id);
   void endChunk(const Stream::pos_type& bodyStart);
   void beginObject(Model::Sketch** sketch);
@@ -31,6 +34,25 @@ public:
   void modelMap(std::unordered_map<ID<TModel>, TModel*>* map, TCallback callback)
   {
     collection(map, [callback](const auto& current) { callback(current->second); });
+  }
+
+  template<class TModel, class TCallback>
+  void modelMapChunks(std::unordered_map<ID<TModel>, TModel*>* map, uint32_t headerChunkID, uint32_t elementChunkID,
+    TCallback callback)
+  {
+    auto headerChunk = beginChunk(headerChunkID);
+
+    writeAs<uint32_t>(map->size());
+
+    endChunk(headerChunk);
+
+    for (auto& current : *map) {
+      auto elementChunk = beginChunk(elementChunkID);
+
+      callback(current.second);
+
+      endChunk(elementChunk);
+    }
   }
 
   template<class TCollection, class TCallback>
@@ -93,6 +115,7 @@ private:
   Stream& mStream;
   std::unordered_map<ID<Model::Node>, IDValue> mNodeIndices;
   std::unordered_map<ID<Model::ControlPoint>, IDValue> mControlPointIndices;
+  int mVersion;
 };
 
 }

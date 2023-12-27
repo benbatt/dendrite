@@ -22,6 +22,9 @@ class Sketch : public Gtk::DrawingArea
 public:
   Sketch(Model::Sketch* model, Controller::UndoManager* undoManager, Context& context);
 
+  void setStrokeColour(const Gdk::RGBA& colour);
+  void setFillColour(const Gdk::RGBA& colour);
+
   struct Handle
   {
     enum Type
@@ -115,6 +118,7 @@ private:
   std::list<Mode*> mModeStack;
 
   Handle mHoverHandle;
+  ID<Model::Path> mSelectedPath;
 };
 
 }
