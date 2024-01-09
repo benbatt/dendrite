@@ -45,6 +45,14 @@ void Reader::beginObject(Model::Sketch** sketch)
 void Reader::endObject(Model::Sketch* sketch)
 {
   sketch->mNextID = std::max(sketch->mNodes.size(), sketch->mControlPoints.size()) + 1;
+
+  if (sketch->mDrawOrder.empty()) {
+    sketch->mDrawOrder.reserve(sketch->mPaths.size());
+
+    for (auto current : sketch->mPaths) {
+      sketch->mDrawOrder.push_back(current.first);
+    }
+  }
 }
 
 Reader::Element Reader::beginElement()

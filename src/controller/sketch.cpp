@@ -19,10 +19,14 @@ ID<Model::Path> Sketch::addPath()
   ID<Model::Path> id = Path::Accessor::nextID<Model::Path>();
 
   mUndoManager->pushCommand(
-    [this, id]() { mModel->mPaths[id] = new Model::Path; },
+    [this, id]() {
+      mModel->mPaths[id] = new Model::Path;
+      mModel->mDrawOrder.push_back(id);
+    },
     [this, id]() {
       delete mModel->mPaths.at(id);
       mModel->mPaths.erase(id);
+      mModel->mDrawOrder.pop_back();
     },
     "Add path");
 
@@ -42,6 +46,25 @@ Node Sketch::controllerForNode(const ID<Model::Node>& id)
 ControlPoint Sketch::controllerForControlPoint(const ID<Model::ControlPoint>& id)
 {
   return ControlPoint(mUndoManager, this, id);
+}
+
+void Sketch::bringPathForward(const ID<Model::Path>& id)
+{
+  Model::Sketch::DrawOrder& drawOrder = mModel->mDrawOrder;
+  auto it = std::find(drawOrder.begin(), drawOrder.end(), id);
+
+  assert(it != drawOrder.end());
+
+  int index = std::distance(drawOrder.begin(), it);
+
+  if (index == drawOrder.size() - 1) {
+    return;
+  }
+
+  mUndoManager->pushCommand(
+    [=]() { std::swap(mModel->mDrawOrder[index], mModel->mDrawOrder[index + 1]); },
+    [=]() { std::swap(mModel->mDrawOrder[index], mModel->mDrawOrder[index + 1]); },
+    "Bring path forward");
 }
 
 void Sketch::removeNode(const ID<Model::Node>& nodeID)

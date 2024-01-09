@@ -9,6 +9,7 @@ namespace Model
 {
   class Node;
   class ControlPoint;
+  class Path;
   class Sketch;
 }
 
@@ -89,6 +90,11 @@ public:
     return id->value();
   }
 
+  IDValue remap(ID<Model::Path>* id)
+  {
+    return mPathIndices.at(*id);
+  }
+
   IDValue remap(ID<Model::Node>* id)
   {
     return mNodeIndices.at(*id);
@@ -113,6 +119,7 @@ public:
 
 private:
   Stream& mStream;
+  std::unordered_map<ID<Model::Path>, IDValue> mPathIndices;
   std::unordered_map<ID<Model::Node>, IDValue> mNodeIndices;
   std::unordered_map<ID<Model::ControlPoint>, IDValue> mControlPointIndices;
   int mVersion;

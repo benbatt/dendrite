@@ -57,6 +57,7 @@ void buildIDMap(const TRange& range, std::unordered_map<ID<TModel>, IDValue>* ma
 
 void Writer::beginObject(Model::Sketch** sketch)
 {
+  buildIDMap((*sketch)->paths(), &mPathIndices);
   buildIDMap((*sketch)->nodes(), &mNodeIndices);
   buildIDMap((*sketch)->controlPoints(), &mControlPointIndices);
 }

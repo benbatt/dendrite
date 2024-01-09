@@ -70,6 +70,7 @@ void Application::on_startup()
   mViewContext.mMoveAction = add_action("move");
   mViewContext.mCancelAction = add_action("cancel");
   mViewContext.mViewAction = add_action("view");
+  mViewContext.mBringForwardAction = add_action("bringForward");
 
   set_accel_for_action("app.undo", "<Control>Z");
   set_accel_for_action("app.redo", "<Control><Shift>Z");
@@ -102,6 +103,11 @@ void Application::on_startup()
   actionSection->append("_Move", "app.move");
   actionSection->append("_Cancel", "app.cancel");
   actionSection->append("_View", "app.view");
+
+  auto drawOrderSection = Gio::Menu::create();
+  editMenu->append_section(drawOrderSection);
+
+  drawOrderSection->append("Bring _Forward", "app.bringForward");
 
   set_menubar(menuBar);
 }

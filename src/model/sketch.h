@@ -3,6 +3,7 @@
 #include "utilities/id.h"
 
 #include <unordered_map>
+#include <vector>
 
 namespace Controller
 {
@@ -52,6 +53,9 @@ public:
   Node* node(const ID<Node>& id) const;
   Path* path(const ID<Path>& id) const;
 
+  typedef std::vector<ID<Path>> DrawOrder;
+  const DrawOrder& drawOrder() const { return mDrawOrder; }
+
 private:
   friend class Controller::Sketch;
   friend class Serialisation::Layout;
@@ -64,6 +68,7 @@ private:
   ControlPointList mControlPoints;
   NodeList mNodes;
   PathList mPaths;
+  DrawOrder mDrawOrder;
   IDValue mNextID;
 };
 

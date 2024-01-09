@@ -81,6 +81,7 @@ private:
   void activateDeleteMode(const Glib::VariantBase&);
   void activateMoveMode(const Glib::VariantBase&);
   void activateViewMode(const Glib::VariantBase&);
+  void bringForward(const Glib::VariantBase&);
   void onCancel(const Glib::VariantBase&);
   void setModel(Model::Sketch* model);
 

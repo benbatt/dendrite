@@ -588,6 +588,7 @@ Sketch::Sketch(Model::Sketch* model, Controller::UndoManager *undoManager, Conte
   context.moveAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::activateMoveMode));
   context.viewAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::activateViewMode));
   context.cancelAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::onCancel));
+  context.bringForwardAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::bringForward));
   context.signalModelChanged().connect(sigc::mem_fun(*this, &Sketch::setModel));
 
   auto clickController = Gtk::GestureClick::create();
@@ -646,15 +647,18 @@ bool pathToCairo(const Cairo::RefPtr<Cairo::Context>& context, const Model::Path
 
 void Sketch::onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width, int height)
 {
-  for (auto current : mModel->paths()) {
-    const Model::Path* path = current.second;
+  bool drawExtents = false;
+  double xMin, xMax, yMin, yMax;
 
-    bool drawExtents = (current.first == mSelectedPath);
-    double xMin, xMax, yMin, yMax;
+  for (auto pathID : mModel->drawOrder()) {
+    const Model::Path* path = mModel->path(pathID);
+
+    bool selected = (pathID == mSelectedPath);
 
     if (pathToCairo(context, path, mModel)) {
-      if (drawExtents) {
+      if (selected) {
         context->get_path_extents(xMin, yMin, xMax, yMax);
+        drawExtents = true;
       }
 
       {
@@ -672,20 +676,20 @@ void Sketch::onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width, int
 
       context->begin_new_path();
     }
+  }
 
-    if (drawExtents) {
-      static const std::vector<double> sDash{2};
+  if (drawExtents) {
+    static const std::vector<double> sDash{2};
 
-      context->save();
+    context->save();
 
-      context->rectangle(xMin, yMin, xMax - xMin, yMax - yMin);
-      context->set_source_rgb(0, 0, 0);
-      context->set_line_width(1);
-      context->set_dash(sDash, 0);
-      context->stroke();
+    context->rectangle(xMin, yMin, xMax - xMin, yMax - yMin);
+    context->set_source_rgb(0, 0, 0);
+    context->set_line_width(1);
+    context->set_dash(sDash, 0);
+    context->stroke();
 
-      context->restore();
-    }
+    context->restore();
   }
 
   for (auto it = mModeStack.rbegin(); it != mModeStack.rend(); ++it) {
@@ -807,6 +811,15 @@ void Sketch::activateMoveMode(const Glib::VariantBase&)
 void Sketch::activateViewMode(const Glib::VariantBase&)
 {
   cancelModeStack();
+}
+
+void Sketch::bringForward(const Glib::VariantBase&)
+{
+  if (mSelectedPath) {
+    mController->bringPathForward(mSelectedPath);
+
+    queue_draw();
+  }
 }
 
 void Sketch::onCancel(const Glib::VariantBase&)

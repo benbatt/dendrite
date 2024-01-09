@@ -156,7 +156,8 @@ namespace Version
 
 static const unsigned int Initial = 1;
 static const unsigned int PathChunks = 2;
-static const unsigned int Current = 2;
+static const unsigned int DrawOrder = 3;
+static const unsigned int Current = 3;
 
 }
 
@@ -202,6 +203,18 @@ Model::Sketch* Layout::process(TEndpoint& endpoint, Model::Sketch* sketch)
     variableElements(endpoint, &sketch->mPaths, processPathElement<TEndpoint>);
 
     endpoint.endChunk(pathsChunk);
+  }
+
+  // Draw order
+  if (endpoint.version() >= Version::DrawOrder) {
+    auto drawOrderChunk = beginChunk(endpoint, "ORDR");
+
+    fixedElements(endpoint, &sketch->mDrawOrder,
+      [](TEndpoint& endpoint, ID<Model::Path>* id) {
+        endpoint.id(id);
+      });
+
+    endpoint.endChunk(drawOrderChunk);
   }
 
   endpoint.endObject(sketch);
