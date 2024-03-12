@@ -1,11 +1,11 @@
 #pragma once
 
-#include <gtkmm/drawingarea.h>
-#include <gtkmm/gestureclick.h>
-
 #include "controller/sketch.h"
 #include "model/sketch.h"
 #include "utilities/geometry.h"
+
+#include <cairo.h>
+#include <wx/wx.h>
 
 namespace Controller
 {
@@ -17,13 +17,13 @@ namespace View
 
 class Context;
 
-class Sketch : public Gtk::DrawingArea
+class Sketch : public wxControl
 {
 public:
-  Sketch(Model::Sketch* model, Controller::UndoManager* undoManager, Context& context);
+  Sketch(wxWindow* parent, Model::Sketch* model, Controller::UndoManager* undoManager, Context& context);
 
-  void setStrokeColour(const Gdk::RGBA& colour);
-  void setFillColour(const Gdk::RGBA& colour);
+  void setStrokeColour(const wxColour& colour);
+  void setFillColour(const wxColour& colour);
 
   struct Handle
   {
@@ -70,19 +70,19 @@ private:
   friend class SketchModeDelete;
   friend class SketchModePlace;
 
-  void onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width, int height);
-  void drawTangents(const Cairo::RefPtr<Cairo::Context>& context);
-  void onPointerPressed(int count, double x, double y);
-  void onSecondaryPointerPressed(int count, double x, double y);
-  void onPointerMotion(double x, double y);
-  bool onKeyPressed(guint keyval, guint keycode, Gdk::ModifierType state);
+  void onPaint(wxPaintEvent& event);
+  void drawTangents(cairo_t* context);
+  void onPointerPressed(wxMouseEvent& event);
+  void onSecondaryPointerPressed(wxMouseEvent& event);
+  void onPointerMotion(wxMouseEvent& event);
+  void onKeyPressed(wxKeyEvent& event);
   void refreshHandles();
-  void activateAddMode(const Glib::VariantBase&);
-  void activateDeleteMode(const Glib::VariantBase&);
-  void activateMoveMode(const Glib::VariantBase&);
-  void activateViewMode(const Glib::VariantBase&);
-  void bringForward(const Glib::VariantBase&);
-  void onCancel(const Glib::VariantBase&);
+  void activateAddMode();
+  void activateDeleteMode();
+  void activateMoveMode();
+  void activateViewMode();
+  void bringForward();
+  void onCancel();
   void setModel(Model::Sketch* model);
 
   Handle findHandle(double x, double y, Handle::Type type, const Model::Node::ControlPointList& ignoreControlPoints);
@@ -98,11 +98,11 @@ private:
   public:
     virtual void begin(Sketch& sketch) { };
     virtual void end(Sketch& sketch) { };
-    virtual void draw(Sketch& sketch, const Cairo::RefPtr<Cairo::Context>& context, int width, int height) { }
-    virtual void onPointerPressed(Sketch& sketch, int count, double x, double y) { }
-    virtual void onPointerReleased(Sketch& sketch, int count, double x, double y) { }
+    virtual void draw(Sketch& sketch, cairo_t* context, int width, int height) { }
+    virtual void onPointerPressed(Sketch& sketch, double x, double y) { }
+    virtual void onPointerReleased(Sketch& sketch) { }
     virtual bool onPointerMotion(Sketch& sketch, double x, double y) { return false; }
-    virtual bool onKeyPressed(Sketch& sketch, guint keyval, guint keycode, Gdk::ModifierType state) { return false; }
+    virtual bool onKeyPressed(Sketch& sketch, wxKeyEvent& event) { return false; }
     virtual void onCancel(Sketch& sketch) { }
     virtual void onChildPopped(Sketch& sketch, Mode* child) { }
   };

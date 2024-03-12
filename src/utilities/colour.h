@@ -11,6 +11,10 @@ public:
   // RGBA8888 representation
   enum { ComponentMask = 0xFF, RedShift = 0, GreenShift = 8, BlueShift = 16, AlphaShift = 24 };
 
+  explicit Colour(uint32_t rgba)
+    : mValue(rgba)
+  {}
+
   Colour(float red, float green, float blue, float alpha)
     : mValue((static_cast<uint32_t>(red * ComponentMask) << RedShift)
       | (static_cast<uint32_t>(green * ComponentMask) << GreenShift)

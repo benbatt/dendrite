@@ -2,53 +2,40 @@
 
 #include "controller/undo.h"
 
-#include <gtkmm/gestureclick.h>
+#include "view/sketch.h"
+
+#include <wx/clrpicker.h>
 
 MainWindow::MainWindow(Model::Sketch* model, Controller::UndoManager* undoManager, View::Context& viewContext)
-  : mMainBox(Gtk::Orientation::HORIZONTAL)
-  , mToolFrame("Fill and Stroke")
-  , mSketchView(model, undoManager, viewContext)
+  : wxFrame(nullptr, wxID_ANY, "SplineDraw")
   , mUndoManager(undoManager)
 {
-  set_show_menubar(true);
+  wxBoxSizer* mainBox = new wxBoxSizer(wxHORIZONTAL);
 
-  set_child(mMainBox);
-  mMainBox.append(mSketchView);
-  mMainBox.append(mToolFrame);
+  View::Sketch* sketchView = new View::Sketch(this, model, undoManager, viewContext);
+  mainBox->Add(sketchView, wxSizerFlags(1).Expand());
 
-  mToolFrame.set_child(mToolGrid);
+  wxFlexGridSizer* toolSizer = new wxFlexGridSizer(2, 5, 5);
+  mainBox->Add(toolSizer, wxSizerFlags().Border());
 
-  mToolGrid.set_margin(10);
-  mToolGrid.set_column_spacing(5);
-  mToolGrid.set_row_spacing(5);
+  wxColourPickerCtrl* strokeColourPicker = new wxColourPickerCtrl(this, wxID_ANY);
+  toolSizer->Add(new wxStaticText(this, wxID_ANY, "Stroke"), wxSizerFlags().CentreVertical().Right());
+  toolSizer->Add(strokeColourPicker);
 
-  mStrokeLabel.set_text("Stroke");
-  mStrokeLabel.set_halign(Gtk::Align::END);
+  wxColourPickerCtrl* fillColourPicker = new wxColourPickerCtrl(this, wxID_ANY);
+  toolSizer->Add(new wxStaticText(this, wxID_ANY, "Fill"), wxSizerFlags().CentreVertical().Right());
+  toolSizer->Add(fillColourPicker);
 
-  mToolGrid.attach(mStrokeLabel, 0, 0);
-  mToolGrid.attach(mStrokeColourButton, 1, 0);
+  strokeColourPicker->Bind(wxEVT_COLOURPICKER_CHANGED,
+    [sketchView](wxColourPickerEvent& event) { sketchView->setStrokeColour(event.GetColour()); });
+  fillColourPicker->Bind(wxEVT_COLOURPICKER_CHANGED,
+    [sketchView](wxColourPickerEvent& event) { sketchView->setFillColour(event.GetColour()); });
 
-  mFillLabel.set_text("Fill");
-  mFillLabel.set_halign(Gtk::Align::END);
+  SetSizerAndFit(mainBox);
 
-  mToolGrid.attach(mFillLabel, 0, 1);
-  mToolGrid.attach(mFillColourButton, 1, 1);
-
-  mStrokeColourButton.signal_color_set().connect(
-      [this]() { mSketchView.setStrokeColour(mStrokeColourButton.get_rgba()); });
-  mFillColourButton.signal_color_set().connect(
-      [this]() { mSketchView.setFillColour(mFillColourButton.get_rgba()); });
-
-  auto clickController = Gtk::GestureClick::create();
-  clickController->signal_released().connect(sigc::mem_fun(*this, &MainWindow::onReleased));
-  add_controller(clickController);
+  CreateStatusBar();
 }
 
 MainWindow::~MainWindow()
 {
-}
-
-void MainWindow::onReleased(int, double, double)
-{
-  mUndoManager->setEnableMerge(false);
 }

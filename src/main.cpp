@@ -8,157 +8,136 @@
 #include "view/context.h"
 
 #include <fstream>
-#include <gtkmm/application.h>
-#include <gtkmm/filedialog.h>
+#include <wx/wx.h>
 
 #include <iostream>
 
-class Application : public Gtk::Application
+class Application : public wxApp
 {
 public:
-  static Glib::RefPtr<Application> create();
-
-protected:
-  void on_activate() override;
-  void on_startup() override;
+  bool OnInit() override;
 
 private:
-  void onUndo();
-  void onRedo();
-  void onOpen();
-  void onSave();
+  enum ID {
+    Open,
+    Save,
+    Undo,
+    Redo,
+    Add,
+    Delete,
+    Move,
+    Cancel,
+    View,
+    BringForward,
+  };
 
-  void addWindow(Model::Sketch* model);
+  void onUndo(wxCommandEvent& event);
+  void onRedo(wxCommandEvent& event);
+  void onOpen(wxCommandEvent& event);
+  void onSave(wxCommandEvent& event);
 
   Controller::UndoManager mUndoManager;
   View::Context mViewContext;
+  wxMenuBar* mMenuBar;
   Model::Sketch* mModel;
+  MainWindow* mMainWindow;
 };
 
-Glib::RefPtr<Application> Application::create()
+bool Application::OnInit()
 {
-  return Glib::make_refptr_for_instance<Application>(new Application());
-}
+  Bind(wxEVT_MENU, &Application::onUndo, this, ID::Undo);
+  Bind(wxEVT_MENU, &Application::onRedo, this, ID::Redo);
+  Bind(wxEVT_MENU, &Application::onSave, this, ID::Save);
+  Bind(wxEVT_MENU, &Application::onOpen, this, ID::Open);
 
-void Application::on_activate()
-{
+  Bind(wxEVT_MENU, [this](wxCommandEvent&) { mViewContext.mAddSignal.emit(); }, ID::Add);
+  Bind(wxEVT_MENU, [this](wxCommandEvent&) { mViewContext.mDeleteSignal.emit(); }, ID::Delete);
+  Bind(wxEVT_MENU, [this](wxCommandEvent&) { mViewContext.mMoveSignal.emit(); }, ID::Move);
+  Bind(wxEVT_MENU, [this](wxCommandEvent&) { mViewContext.mCancelSignal.emit(); }, ID::Cancel);
+  Bind(wxEVT_MENU, [this](wxCommandEvent&) { mViewContext.mViewSignal.emit(); }, ID::View);
+  Bind(wxEVT_MENU, [this](wxCommandEvent&) { mViewContext.mBringForwardSignal.emit(); }, ID::BringForward);
+
+  mMenuBar = new wxMenuBar;
+
+  wxMenu* fileMenu = new wxMenu;
+  mMenuBar->Append(fileMenu, "&File");
+
+  fileMenu->Append(ID::Open, "&Open\tCtrl-O");
+  fileMenu->Append(ID::Save, "&Save\tCtrl-S");
+
+  wxMenu* editMenu = new wxMenu;
+  mMenuBar->Append(editMenu, "&Edit");
+
+  editMenu->Append(ID::Undo, "&Undo\tCtrl-Z");
+  editMenu->Append(ID::Redo, "&Redo\tCtrl-Shift-Z");
+
+  editMenu->AppendSeparator();
+
+  editMenu->Append(ID::Add, "&Add\tA");
+  editMenu->Append(ID::Delete, "&Delete\tD");
+  editMenu->Append(ID::Move, "&Move\tM");
+  editMenu->Append(ID::Cancel, "&Cancel\tEscape");
+  editMenu->Append(ID::View, "&View\tSpace");
+
+  editMenu->AppendSeparator();
+
+  editMenu->Append(ID::BringForward, "Bring &Forward");
+
   mModel = new Model::Sketch;
-  addWindow(mModel);
+
+  mMainWindow = new MainWindow(mModel, &mUndoManager, mViewContext);
+  mMainWindow->SetMenuBar(mMenuBar);
+  mMainWindow->Maximize(true);
+  mMainWindow->Show();
+
+  return true;
 }
 
-void Application::addWindow(Model::Sketch* model)
-{
-  MainWindow* mainWindow = new MainWindow(model, &mUndoManager, mViewContext);
-  add_window(*mainWindow);
-
-  mainWindow->signal_hide().connect([mainWindow]() { delete mainWindow; });
-
-  mainWindow->maximize();
-  mainWindow->present();
-}
-
-void Application::on_startup()
-{
-  Gtk::Application::on_startup();
-
-  add_action("undo", sigc::mem_fun(*this, &Application::onUndo));
-  add_action("redo", sigc::mem_fun(*this, &Application::onRedo));
-  add_action("save", sigc::mem_fun(*this, &Application::onSave));
-  add_action("open", sigc::mem_fun(*this, &Application::onOpen));
-  mViewContext.mAddAction = add_action("add");
-  mViewContext.mDeleteAction = add_action("delete");
-  mViewContext.mMoveAction = add_action("move");
-  mViewContext.mCancelAction = add_action("cancel");
-  mViewContext.mViewAction = add_action("view");
-  mViewContext.mBringForwardAction = add_action("bringForward");
-
-  set_accel_for_action("app.undo", "<Control>Z");
-  set_accel_for_action("app.redo", "<Control><Shift>Z");
-  set_accel_for_action("app.save", "<Control>S");
-  set_accel_for_action("app.open", "<Control>O");
-  set_accel_for_action("app.add", "A");
-  set_accel_for_action("app.delete", "D");
-  set_accel_for_action("app.move", "M");
-  set_accel_for_action("app.cancel", "Escape");
-  set_accel_for_action("app.view", "space");
-
-  auto menuBar = Gio::Menu::create();
-
-  auto fileMenu = Gio::Menu::create();
-  menuBar->append_submenu("_File", fileMenu);
-
-  fileMenu->append("_Open", "app.open");
-  fileMenu->append("_Save", "app.save");
-
-  auto editMenu = Gio::Menu::create();
-  menuBar->append_submenu("_Edit", editMenu);
-
-  editMenu->append("_Undo", "app.undo");
-  editMenu->append("_Redo", "app.redo");
-
-  auto actionSection = Gio::Menu::create();
-  editMenu->append_section(actionSection);
-
-  actionSection->append("_Add", "app.add");
-  actionSection->append("_Move", "app.move");
-  actionSection->append("_Cancel", "app.cancel");
-  actionSection->append("_View", "app.view");
-
-  auto drawOrderSection = Gio::Menu::create();
-  editMenu->append_section(drawOrderSection);
-
-  drawOrderSection->append("Bring _Forward", "app.bringForward");
-
-  set_menubar(menuBar);
-}
-
-void Application::onUndo()
+void Application::onUndo(wxCommandEvent& event)
 {
   mUndoManager.undo();
 }
 
-void Application::onRedo()
+void Application::onRedo(wxCommandEvent& event)
 {
   mUndoManager.redo();
 }
 
-void Application::onSave()
+void Application::onSave(wxCommandEvent& event)
 {
-  auto fileDialog = Gtk::FileDialog::create();
+  wxFileDialog dialog(mMainWindow, "Open", "", "", "", wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
 
-  fileDialog->save([this, fileDialog](Glib::RefPtr<Gio::AsyncResult>& result) {
-      auto file = fileDialog->save_finish(result);
-      std::cout << "Saving to " << file->get_path() << std::endl;
-      std::ofstream stream(file->get_path(), std::ios_base::binary);
+  if (dialog.ShowModal() == wxID_CANCEL) {
+    return;
+  }
 
-      Serialisation::Writer writer(stream);
-      Serialisation::Layout::process(writer, mModel);
-    });
+  std::cout << "Saving to " << dialog.GetPath() << std::endl;
+  std::ofstream stream(dialog.GetPath(), std::ios_base::binary);
+
+  Serialisation::Writer writer(stream);
+  Serialisation::Layout::process(writer, mModel);
 }
 
-void Application::onOpen()
+void Application::onOpen(wxCommandEvent& event)
 {
-  auto fileDialog = Gtk::FileDialog::create();
+  wxFileDialog dialog(mMainWindow, "Open", "", "", "", wxFD_OPEN | wxFD_FILE_MUST_EXIST);
 
-  fileDialog->open([this, fileDialog](Glib::RefPtr<Gio::AsyncResult>& result) {
-      auto file = fileDialog->open_finish(result);
-      std::cout << "Opening " << file->get_path() << std::endl;
-      std::ifstream stream(file->get_path(), std::ios_base::binary);
+  if (dialog.ShowModal() == wxID_CANCEL) {
+    return;
+  }
 
-      Serialisation::Reader reader(stream);
-      Model::Sketch* newModel = Serialisation::Layout::process(reader, nullptr);
+  std::cout << "Opening " << dialog.GetPath() << std::endl;
+  std::ifstream stream(dialog.GetPath(), std::ios_base::binary);
 
-      mUndoManager.clear();
+  Serialisation::Reader reader(stream);
+  Model::Sketch* newModel = Serialisation::Layout::process(reader, nullptr);
 
-      delete mModel;
-      mModel = newModel;
+  mUndoManager.clear();
 
-      mViewContext.mModelChangedSignal.emit(mModel);
-    });
+  delete mModel;
+  mModel = newModel;
+
+  mViewContext.mModelChangedSignal.emit(mModel);
 }
 
-int main(int argc, char* argv[])
-{
-  auto application = Application::create();
-  return application->run(argc, argv);
-}
+wxIMPLEMENT_APP(Application);

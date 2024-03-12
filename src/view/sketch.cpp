@@ -4,9 +4,7 @@
 #include "model/controlpoint.h"
 #include "view/context.h"
 
-#include <gtkmm/eventcontrollerkey.h>
-#include <gtkmm/eventcontrollermotion.h>
-#include <gtkmm/gesturedrag.h>
+#include <wx/rawbmp.h>
 
 namespace View
 {
@@ -52,28 +50,28 @@ HandleStyle handleStyle(NodeType nodeType, Handle::Type handleType)
 
 const float HandleSize = 10;
 
-void drawHandle(const Cairo::RefPtr<Cairo::Context>& context, HandleStyle style, const Point& position, bool hover)
+void drawHandle(cairo_t* context, HandleStyle style, const Point& position, bool hover)
 {
   const float HalfSize = HandleSize / 2;
 
   switch (style) {
     case HandleStyle::Symmetric:
-      context->arc(position.x, position.y, HalfSize, 0, 2 * M_PI);
-      context->close_path();
+      cairo_arc(context, position.x, position.y, HalfSize, 0, 2 * M_PI);
+      cairo_close_path(context);
       break;
     case HandleStyle::Smooth:
-      context->rectangle(position.x - HalfSize, position.y - HalfSize, HandleSize, HandleSize);
+      cairo_rectangle(context, position.x - HalfSize, position.y - HalfSize, HandleSize, HandleSize);
       break;
     case HandleStyle::Sharp:
-      context->move_to(position.x - HalfSize, position.y);
-      context->line_to(position.x, position.y - HalfSize);
-      context->line_to(position.x + HalfSize, position.y);
-      context->line_to(position.x, position.y + HalfSize);
-      context->close_path();
+      cairo_move_to(context, position.x - HalfSize, position.y);
+      cairo_line_to(context, position.x, position.y - HalfSize);
+      cairo_line_to(context, position.x + HalfSize, position.y);
+      cairo_line_to(context, position.x, position.y + HalfSize);
+      cairo_close_path(context);
       break;
     case HandleStyle::Control:
-      context->arc(position.x, position.y, HalfSize / 2, 0, 2 * M_PI);
-      context->close_path();
+      cairo_arc(context, position.x, position.y, HalfSize / 2, 0, 2 * M_PI);
+      cairo_close_path(context);
       break;
     case HandleStyle::Add:
     case HandleStyle::Delete:
@@ -81,54 +79,54 @@ void drawHandle(const Cairo::RefPtr<Cairo::Context>& context, HandleStyle style,
         const float Thickness = 2;
         const float ArmLength = HalfSize - (Thickness / 2);
 
-        context->save();
+        cairo_save(context);
 
-        context->translate(position.x, position.y);
+        cairo_translate(context, position.x, position.y);
 
         if (style == HandleStyle::Delete) {
-          context->rotate(M_PI / 4);
+          cairo_rotate(context, M_PI / 4);
         }
 
-        context->move_to(-(Thickness / 2), -(Thickness / 2));
+        cairo_move_to(context, -(Thickness / 2), -(Thickness / 2));
 
         // Up
-        context->rel_line_to(0, -ArmLength);
-        context->rel_line_to(Thickness, 0);
-        context->rel_line_to(0, ArmLength);
+        cairo_rel_line_to(context, 0, -ArmLength);
+        cairo_rel_line_to(context, Thickness, 0);
+        cairo_rel_line_to(context, 0, ArmLength);
 
         // Right
-        context->rel_line_to(ArmLength, 0);
-        context->rel_line_to(0, Thickness);
-        context->rel_line_to(-ArmLength, 0);
+        cairo_rel_line_to(context, ArmLength, 0);
+        cairo_rel_line_to(context, 0, Thickness);
+        cairo_rel_line_to(context, -ArmLength, 0);
 
         // Down
-        context->rel_line_to(0, ArmLength);
-        context->rel_line_to(-Thickness, 0);
-        context->rel_line_to(0, -ArmLength);
+        cairo_rel_line_to(context, 0, ArmLength);
+        cairo_rel_line_to(context, -Thickness, 0);
+        cairo_rel_line_to(context, 0, -ArmLength);
 
         // Left
-        context->rel_line_to(-ArmLength, 0);
-        context->rel_line_to(0, -Thickness);
-        context->rel_line_to(ArmLength, 0);
+        cairo_rel_line_to(context, -ArmLength, 0);
+        cairo_rel_line_to(context, 0, -Thickness);
+        cairo_rel_line_to(context, ArmLength, 0);
 
-        context->close_path();
+        cairo_close_path(context);
 
-        context->restore();
+        cairo_restore(context);
       }
       break;
   }
 
-  context->set_source_rgb(0, 0, 0);
-  context->set_line_width(2);
-  context->stroke_preserve();
+  cairo_set_source_rgb(context, 0, 0, 0);
+  cairo_set_line_width(context, 2);
+  cairo_stroke_preserve(context);
 
   if (hover) {
-    context->set_source_rgb(1, 1, 1);
+    cairo_set_source_rgb(context, 1, 1, 1);
   } else {
-    context->set_source_rgb(0.5, 0.5, 0.5);
+    cairo_set_source_rgb(context, 0.5, 0.5, 0.5);
   }
 
-  context->fill();
+  cairo_fill(context);
 }
 
 class SketchModePlace : public Sketch::Mode
@@ -148,18 +146,18 @@ public:
 
   void begin(Sketch& sketch) override
   {
-    mPreviousCursor = sketch.get_cursor();
-    sketch.set_cursor("none");
+    mPreviousCursor = sketch.GetCursor();
+    sketch.SetCursor(wxCURSOR_BLANK);
 
     setDirectionConstraint(sketch);
   }
 
   void end(Sketch& sketch) override
   {
-    sketch.set_cursor(mPreviousCursor);
+    sketch.SetCursor(mPreviousCursor);
   }
 
-  void draw(Sketch& sketch, const Cairo::RefPtr<Cairo::Context>& context, int width, int height) override
+  void draw(Sketch& sketch, cairo_t* context, int width, int height) override
   {
     if (mConstrainDirection && mDragHandle.refersTo(Handle::ControlPoint)) {
       const Model::ControlPoint* controlPoint = mDragHandle.controlPoint(sketch.mModel);
@@ -167,17 +165,17 @@ public:
       Point start = sketch.mModel->node(controlPoint->node())->position();
       Point end = start + mDirectionConstraint * std::max(width, height);
 
-      context->move_to(start.x, start.y);
-      context->line_to(end.x, end.y);
+      cairo_move_to(context, start.x, start.y);
+      cairo_line_to(context, end.x, end.y);
 
-      context->set_line_width(1);
-      context->set_source_rgb(1, 0, 1);
+      cairo_set_line_width(context, 1);
+      cairo_set_source_rgb(context, 1, 0, 1);
 
-      context->stroke();
+      cairo_stroke(context);
     }
   }
 
-  void onPointerPressed(Sketch& sketch, int count, double x, double y) override
+  void onPointerPressed(Sketch& sketch, double x, double y) override
   {
     sketch.popMode(this);
   }
@@ -191,9 +189,9 @@ public:
     return true;
   }
 
-  bool onKeyPressed(Sketch& sketch, guint keyval, guint keycode, Gdk::ModifierType state) override
+  bool onKeyPressed(Sketch& sketch, wxKeyEvent& event) override
   {
-    if (keyval == GDK_KEY_Control_L || keyval == GDK_KEY_Control_R) {
+    if (event.GetKeyCode() == WXK_CONTROL) {
       if (mDragHandle) {
         ID<Model::Node> nodeID = sketch.nodeIDForHandle(mDragHandle);
 
@@ -218,11 +216,11 @@ public:
             .setPosition(controlPoint->position());
         }
 
-        sketch.queue_draw();
+        sketch.Refresh();
 
         return true;
       }
-    } else if (keyval == GDK_KEY_Shift_L || keyval == GDK_KEY_Shift_R) {
+    } else if (event.GetKeyCode() == WXK_SHIFT) {
       mConstrainDirection = !mConstrainDirection;
 
       if (mConstrainDirection && mDragHandle) {
@@ -267,10 +265,10 @@ private:
     }
 
     sketch.setHandlePosition(handle, newPosition);
-    sketch.queue_draw();
+    sketch.Refresh();
   }
 
-  Glib::RefPtr<Gdk::Cursor> mPreviousCursor;
+  wxCursor mPreviousCursor;
   Vector mDirectionConstraint;
   bool mConstrainDirection;
   Handle mDragHandle;
@@ -283,7 +281,7 @@ class SketchModeMove : public Sketch::Mode
 public:
   static SketchModeMove sInstance;
 
-  void draw(Sketch& sketch, const Cairo::RefPtr<Cairo::Context>& context, int width, int height) override
+  void draw(Sketch& sketch, cairo_t* context, int width, int height) override
   {
     sketch.drawTangents(context);
 
@@ -298,7 +296,7 @@ public:
     }
   }
 
-  void onPointerPressed(Sketch& sketch, int count, double x, double y) override
+  void onPointerPressed(Sketch& sketch, double x, double y) override
   {
     if (sketch.mHoverHandle) {
       sketch.mUndoManager->beginGroup();
@@ -327,16 +325,16 @@ public:
 
   void begin(Sketch& sketch) override
   {
-    mPreviousCursor = sketch.get_cursor();
-    sketch.set_cursor("crosshair");
+    mPreviousCursor = sketch.GetCursor();
+    sketch.SetCursor(wxCURSOR_CROSS);
   }
 
   void end(Sketch& sketch) override
   {
-    sketch.set_cursor(mPreviousCursor);
+    sketch.SetCursor(mPreviousCursor);
   }
 
-  void draw(Sketch& sketch, const Cairo::RefPtr<Cairo::Context>& context, int width, int height) override
+  void draw(Sketch& sketch, cairo_t* context, int width, int height) override
   {
     sketch.drawTangents(context);
 
@@ -359,7 +357,7 @@ public:
     }
   }
 
-  void onPointerPressed(Sketch& sketch, int count, double x, double y) override
+  void onPointerPressed(Sketch& sketch, double x, double y) override
   {
     if (sketch.mHoverHandle) {
       addNode(sketch, sketch.mHoverHandle);
@@ -377,15 +375,15 @@ public:
     }
   }
 
-  bool onKeyPressed(Sketch& sketch, guint keyval, guint keycode, Gdk::ModifierType state) override
+  bool onKeyPressed(Sketch& sketch, wxKeyEvent& event) override
   {
-    if ((keyval == GDK_KEY_C || keyval == GDK_KEY_c) && sketch.activeMode() == &mSetPositionMode) {
+    if (event.GetKeyCode() == 'C' && sketch.activeMode() == &mSetPositionMode) {
       const Model::Path* path = sketch.mModel->path(mCurrentPath);
 
       if (path->entries().size() > 2) {
         sketch.cancelActiveMode();
         sketch.mController->controllerForPath(mCurrentPath).setClosed(true);
-        sketch.queue_draw();
+        sketch.Refresh();
       }
 
       return true;
@@ -529,7 +527,7 @@ private:
   SketchModePlace mSetPositionMode;
   SketchModePlace mAdjustHandlesMode;
   ID<Model::Path> mCurrentPath;
-  Glib::RefPtr<Gdk::Cursor> mPreviousCursor;
+  wxCursor mPreviousCursor;
 };
 
 SketchModeAdd SketchModeAdd::sInstance;
@@ -541,93 +539,80 @@ public:
 
   void begin(Sketch& sketch) override
   {
-    mPreviousCursor = sketch.get_cursor();
-    sketch.set_cursor("crosshair");
+    mPreviousCursor = sketch.GetCursor();
+    sketch.SetCursor(wxCURSOR_CROSS);
   }
 
   void end(Sketch& sketch) override
   {
-    sketch.set_cursor(mPreviousCursor);
+    sketch.SetCursor(mPreviousCursor);
   }
 
-  void draw(Sketch& sketch, const Cairo::RefPtr<Cairo::Context>& context, int width, int height) override
+  void draw(Sketch& sketch, cairo_t* context, int width, int height) override
   {
     for (auto current : sketch.mModel->nodes()) {
       drawHandle(context, HandleStyle::Delete, current.second->position(), sketch.mHoverHandle == current.first);
     }
   }
 
-  void onPointerPressed(Sketch& sketch, int count, double x, double y) override
+  void onPointerPressed(Sketch& sketch, double x, double y) override
   {
     if (sketch.mHoverHandle.refersTo(Sketch::Handle::Node)) {
       sketch.mController->removeNode(sketch.mHoverHandle.id<Model::Node>());
       sketch.mHoverHandle = Sketch::Handle();
-      sketch.queue_draw();
+      sketch.Refresh();
     }
   }
 
 private:
-  Glib::RefPtr<Gdk::Cursor> mPreviousCursor;
+  wxCursor mPreviousCursor;
 };
 
 SketchModeDelete SketchModeDelete::sInstance;
 
-Sketch::Sketch(Model::Sketch* model, Controller::UndoManager *undoManager, Context& context)
-  : mModel(nullptr)
+Sketch::Sketch(wxWindow* parent, Model::Sketch* model, Controller::UndoManager *undoManager, Context& context)
+  : wxControl(parent, wxID_ANY)
+  , mModel(nullptr)
   , mController(nullptr)
   , mUndoManager(undoManager)
 {
-  set_focusable(true);
-  set_hexpand(true);
-  set_vexpand(true);
+  SetBackgroundStyle(wxBG_STYLE_PAINT);
 
-  set_draw_func(sigc::mem_fun(*this, &Sketch::onDraw));
+  Bind(wxEVT_PAINT, &Sketch::onPaint, this);
 
-  context.addAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::activateAddMode));
-  context.deleteAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::activateDeleteMode));
-  context.moveAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::activateMoveMode));
-  context.viewAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::activateViewMode));
-  context.cancelAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::onCancel));
-  context.bringForwardAction()->signal_activate().connect(sigc::mem_fun(*this, &Sketch::bringForward));
+  context.addSignal().connect(sigc::mem_fun(*this, &Sketch::activateAddMode));
+  context.deleteSignal().connect(sigc::mem_fun(*this, &Sketch::activateDeleteMode));
+  context.moveSignal().connect(sigc::mem_fun(*this, &Sketch::activateMoveMode));
+  context.viewSignal().connect(sigc::mem_fun(*this, &Sketch::activateViewMode));
+  context.cancelSignal().connect(sigc::mem_fun(*this, &Sketch::onCancel));
+  context.bringForwardSignal().connect(sigc::mem_fun(*this, &Sketch::bringForward));
   context.signalModelChanged().connect(sigc::mem_fun(*this, &Sketch::setModel));
 
-  auto clickController = Gtk::GestureClick::create();
-  clickController->signal_pressed().connect(sigc::mem_fun(*this, &Sketch::onPointerPressed));
-  add_controller(clickController);
-
-  auto secondaryClickController = Gtk::GestureClick::create();
-  secondaryClickController->set_button(GDK_BUTTON_SECONDARY);
-  secondaryClickController->signal_pressed().connect(sigc::mem_fun(*this, &Sketch::onSecondaryPointerPressed));
-  add_controller(secondaryClickController);
-
-  auto motionController = Gtk::EventControllerMotion::create();
-  motionController->signal_motion().connect(sigc::mem_fun(*this, &Sketch::onPointerMotion));
-  add_controller(motionController);
-
-  auto keyController = Gtk::EventControllerKey::create();
-  keyController->signal_key_pressed().connect(sigc::mem_fun(*this, &Sketch::onKeyPressed), false);
-  add_controller(keyController);
+  Bind(wxEVT_LEFT_DOWN, &Sketch::onPointerPressed, this);
+  Bind(wxEVT_RIGHT_DOWN, &Sketch::onSecondaryPointerPressed, this);
+  Bind(wxEVT_MOTION, &Sketch::onPointerMotion, this);
+  Bind(wxEVT_KEY_DOWN, &Sketch::onKeyPressed, this);
 
   undoManager->signalChanged().connect(sigc::mem_fun(*this, &Sketch::refreshHandles));
 
   setModel(model);
 }
 
-bool pathToCairo(const Cairo::RefPtr<Cairo::Context>& context, const Model::Path* path, const Model::Sketch* sketch)
+bool pathToCairo(cairo_t* context, const Model::Path* path, const Model::Sketch* sketch)
 {
   const Model::Path::EntryList& entries = path->entries();
 
   if (entries.size() > 1) {
     const Point& position = sketch->node(entries[0].mNode)->position();
 
-    context->move_to(position.x, position.y);
+    cairo_move_to(context, position.x, position.y);
 
     for (int i = 1; i < entries.size(); ++i) {
       const Point& control1 = sketch->controlPoint(entries[i - 1].mPostControl)->position();
       const Point& control2 = sketch->controlPoint(entries[i].mPreControl)->position();
       const Point& position = sketch->node(entries[i].mNode)->position();
 
-      context->curve_to(control1.x, control1.y, control2.x, control2.y, position.x, position.y);
+      cairo_curve_to(context, control1.x, control1.y, control2.x, control2.y, position.x, position.y);
     }
 
     if (path->isClosed()) {
@@ -635,8 +620,8 @@ bool pathToCairo(const Cairo::RefPtr<Cairo::Context>& context, const Model::Path
       const Point& control2 = sketch->controlPoint(entries.front().mPreControl)->position();
       const Point& position = sketch->node(entries.front().mNode)->position();
 
-      context->curve_to(control1.x, control1.y, control2.x, control2.y, position.x, position.y);
-      context->close_path();
+      cairo_curve_to(context, control1.x, control1.y, control2.x, control2.y, position.x, position.y);
+      cairo_close_path(context);
     }
 
     return true;
@@ -645,8 +630,17 @@ bool pathToCairo(const Cairo::RefPtr<Cairo::Context>& context, const Model::Path
   }
 }
 
-void Sketch::onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width, int height)
+void Sketch::onPaint(wxPaintEvent& event)
 {
+  wxSize size = GetSize();
+
+  cairo_format_t format = CAIRO_FORMAT_RGB24;
+  cairo_surface_t* surface = cairo_image_surface_create(format, size.GetWidth(), size.GetHeight());
+  cairo_t* context = cairo_create(surface);
+
+  cairo_set_source_rgb(context, 0.7, 0.7, 0.7);
+  cairo_paint(context);
+
   bool drawExtents = false;
   double xMin, xMax, yMin, yMax;
 
@@ -657,47 +651,76 @@ void Sketch::onDraw(const Cairo::RefPtr<Cairo::Context>& context, int width, int
 
     if (pathToCairo(context, path, mModel)) {
       if (selected) {
-        context->get_path_extents(xMin, yMin, xMax, yMax);
+        cairo_path_extents(context, &xMin, &yMin, &xMax, &yMax);
         drawExtents = true;
       }
 
       {
         const Colour& colour = path->strokeColour();
-        context->set_source_rgb(colour.red(), colour.green(), colour.blue());
-        context->set_line_width(2);
-        context->stroke_preserve();
+        cairo_set_source_rgb(context, colour.red(), colour.green(), colour.blue());
+        cairo_set_line_width(context, 2);
+        cairo_stroke_preserve(context);
       }
 
       if (path->isFilled()) {
         const Colour& colour = path->fillColour();
-        context->set_source_rgb(colour.red(), colour.green(), colour.blue());
-        context->fill();
+        cairo_set_source_rgb(context, colour.red(), colour.green(), colour.blue());
+        cairo_fill(context);
       }
 
-      context->begin_new_path();
+      cairo_new_path(context);
     }
   }
 
   if (drawExtents) {
-    static const std::vector<double> sDash{2};
+    const double DashLength = 2;
 
-    context->save();
+    cairo_save(context);
 
-    context->rectangle(xMin, yMin, xMax - xMin, yMax - yMin);
-    context->set_source_rgb(0, 0, 0);
-    context->set_line_width(1);
-    context->set_dash(sDash, 0);
-    context->stroke();
+    cairo_rectangle(context, xMin, yMin, xMax - xMin, yMax - yMin);
+    cairo_set_source_rgb(context, 0, 0, 0);
+    cairo_set_line_width(context, 1);
+    cairo_set_dash(context, &DashLength, 1, 0);
+    cairo_stroke(context);
 
-    context->restore();
+    cairo_restore(context);
   }
 
   for (auto it = mModeStack.rbegin(); it != mModeStack.rend(); ++it) {
-    (*it)->draw(*this, context, width, height);
+    (*it)->draw(*this, context, size.GetWidth(), size.GetHeight());
   }
+
+  cairo_destroy(context);
+
+  wxImage image(size);
+
+  wxImagePixelData pixelData(image);
+  wxImagePixelData::Iterator it(pixelData);
+
+  unsigned char* cairoData = cairo_image_surface_get_data(surface);
+  int cairoStride = cairo_format_stride_for_width(format, size.GetWidth());
+
+  for (int y = 0; y < size.GetHeight(); ++y) {
+    auto pixel = it;
+    auto cairoPixel = cairoData;
+
+    for (int x = 0; x < size.GetWidth(); ++x, ++pixel, cairoPixel += 4) {
+      pixel.Red() = cairoPixel[2];
+      pixel.Green() = cairoPixel[1];
+      pixel.Blue() = cairoPixel[0];
+    }
+
+    it.OffsetY(pixelData, 1);
+    cairoData += cairoStride;
+  }
+
+  cairo_surface_destroy(surface);
+
+  wxPaintDC dc(this);
+  dc.DrawBitmap(wxBitmap(image), 0, 0);
 }
 
-void Sketch::drawTangents(const Cairo::RefPtr<Cairo::Context>& context)
+void Sketch::drawTangents(cairo_t* context)
 {
   for (auto current : mModel->paths()) {
     for (const Model::Path::Entry& entry : current.second->entries()) {
@@ -705,28 +728,28 @@ void Sketch::drawTangents(const Cairo::RefPtr<Cairo::Context>& context)
       const Point& preControl = mModel->controlPoint(entry.mPreControl)->position();
       const Point& postControl = mModel->controlPoint(entry.mPostControl)->position();
 
-      context->move_to(preControl.x, preControl.y);
-      context->line_to(nodePosition.x, nodePosition.y);
-      context->line_to(postControl.x, postControl.y);
+      cairo_move_to(context, preControl.x, preControl.y);
+      cairo_line_to(context, nodePosition.x, nodePosition.y);
+      cairo_line_to(context, postControl.x, postControl.y);
     }
   }
 
-  context->set_source_rgb(0, 0, 0);
-  context->set_line_width(0.5);
-  context->stroke();
+  cairo_set_source_rgb(context, 0, 0, 0);
+  cairo_set_line_width(context, 0.5);
+  cairo_stroke(context);
 }
 
 ID<Model::Path> findPath(Model::Sketch* sketch, double x, double y)
 {
-  auto surface = Cairo::ImageSurface::create(Cairo::Surface::Format::A8, 1, 1);
-  auto context = Cairo::Context::create(surface);
-  context->set_line_width(4);
+  cairo_surface_t* surface = cairo_image_surface_create(CAIRO_FORMAT_A8, 1, 1);
+  cairo_t* context = cairo_create(surface);
+  cairo_set_line_width(context, 4);
 
   for (auto current : sketch->paths()) {
-    context->begin_new_path();
+    cairo_new_path(context);
 
     if (pathToCairo(context, current.second, sketch)) {
-      if (context->in_stroke(x, y)) {
+      if (cairo_in_stroke(context, x, y)) {
         return current.first;
       }
     }
@@ -735,27 +758,35 @@ ID<Model::Path> findPath(Model::Sketch* sketch, double x, double y)
   return ID<Model::Path>();
 }
 
-void Sketch::onPointerPressed(int count, double x, double y)
+void Sketch::onPointerPressed(wxMouseEvent& event)
 {
+  double x = event.GetX();
+  double y = event.GetY();
+
   if (!mModeStack.empty()) {
-    mModeStack.front()->onPointerPressed(*this, count, x, y);
+    mModeStack.front()->onPointerPressed(*this, x, y);
   } else {
     ID<Model::Path> newSelectedPath = findPath(mModel, x, y);
 
     if (newSelectedPath != mSelectedPath) {
       mSelectedPath = newSelectedPath;
-      queue_draw();
+      Refresh();
     }
   }
+
+  event.Skip();
 }
 
-void Sketch::onSecondaryPointerPressed(int count, double x, double y)
+void Sketch::onSecondaryPointerPressed(wxMouseEvent& event)
 {
-  onCancel(Glib::VariantBase());
+  onCancel();
 }
 
-void Sketch::onPointerMotion(double x, double y)
+void Sketch::onPointerMotion(wxMouseEvent& event)
 {
+  double x = event.GetX();
+  double y = event.GetY();
+
   bool consumed = false;
 
   if (!mModeStack.empty()) {
@@ -767,91 +798,87 @@ void Sketch::onPointerMotion(double x, double y)
 
     if (newHoverHandle != mHoverHandle) {
       mHoverHandle = newHoverHandle;
-      queue_draw();
+      Refresh();
     }
   }
 }
 
-bool Sketch::onKeyPressed(guint keyval, guint keycode, Gdk::ModifierType state)
+void Sketch::onKeyPressed(wxKeyEvent& event)
 {
   for (auto it = mModeStack.begin(); it != mModeStack.end(); ++it) {
-    if ((*it)->onKeyPressed(*this, keyval, keycode, state)) {
-      return true;
+    if ((*it)->onKeyPressed(*this, event)) {
+      return;
     }
   }
 
-  return false;
+  event.Skip();
 }
 
 void Sketch::refreshHandles()
 {
   mHoverHandle.mID = 0;
 
-  queue_draw();
+  Refresh();
 }
 
-void Sketch::activateAddMode(const Glib::VariantBase&)
+void Sketch::activateAddMode()
 {
   cancelModeStack();
   pushMode(&SketchModeAdd::sInstance);
 }
 
-void Sketch::activateDeleteMode(const Glib::VariantBase&)
+void Sketch::activateDeleteMode()
 {
   cancelModeStack();
   pushMode(&SketchModeDelete::sInstance);
 }
 
-void Sketch::activateMoveMode(const Glib::VariantBase&)
+void Sketch::activateMoveMode()
 {
   cancelModeStack();
   pushMode(&SketchModeMove::sInstance);
 }
 
-void Sketch::activateViewMode(const Glib::VariantBase&)
+void Sketch::activateViewMode()
 {
   cancelModeStack();
 }
 
-void Sketch::bringForward(const Glib::VariantBase&)
+void Sketch::bringForward()
 {
   if (mSelectedPath) {
     mController->bringPathForward(mSelectedPath);
 
-    queue_draw();
+    Refresh();
   }
 }
 
-void Sketch::onCancel(const Glib::VariantBase&)
+void Sketch::onCancel()
 {
   if (!mModeStack.empty()) {
     mModeStack.front()->onCancel(*this);
     mModeStack.front()->end(*this);
     mModeStack.pop_front();
 
-    queue_draw();
+    Refresh();
   }
 }
 
-void Sketch::setStrokeColour(const Gdk::RGBA& rgba)
+void Sketch::setStrokeColour(const wxColour& colour)
 {
   if (mSelectedPath) {
-    Colour colour(rgba.get_red(), rgba.get_green(), rgba.get_blue(), rgba.get_alpha());
+    mController->controllerForPath(mSelectedPath).setStrokeColour(Colour(colour.GetRGBA()));
 
-    mController->controllerForPath(mSelectedPath).setStrokeColour(colour);
-
-    queue_draw();
+    Refresh();
   }
 }
 
-void Sketch::setFillColour(const Gdk::RGBA& rgba)
+void Sketch::setFillColour(const wxColour& colour)
 {
   if (mSelectedPath) {
-    Colour colour(rgba.get_red(), rgba.get_green(), rgba.get_blue(), rgba.get_alpha());
+    mController->controllerForPath(mSelectedPath).setFillColour(Colour(colour.GetRGBA()));
 
-    mController->controllerForPath(mSelectedPath).setFillColour(colour);
-
-    queue_draw();
+    Refresh();
   }
 }
 
@@ -869,7 +896,7 @@ void Sketch::setModel(Model::Sketch* model)
 Handle Sketch::findHandle(double x, double y, Handle::Type type,
   const Model::Node::ControlPointList& ignorePoints)
 {
-  const float Radius = HandleSize / 2;
+  const float Radius = View::HandleSize / 2;
 
   auto withinRadius = [x, y, Radius](const Point& position) -> bool {
     return position.x - Radius <= x && x < position.x + Radius
@@ -951,7 +978,7 @@ void Sketch::pushMode(Mode* mode)
 {
   mModeStack.push_front(mode);
   mode->begin(*this);
-  queue_draw();
+  Refresh();
 }
 
 void Sketch::popMode(Mode* mode)
@@ -972,7 +999,7 @@ void Sketch::popMode(Mode* mode)
       }
     }
 
-    queue_draw();
+    Refresh();
   }
 }
 
@@ -984,7 +1011,7 @@ void Sketch::cancelActiveMode()
     mModeStack.pop_front();
   }
 
-  queue_draw();
+  Refresh();
 }
 
 void Sketch::cancelModeStack()
