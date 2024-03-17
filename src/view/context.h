@@ -21,6 +21,7 @@ public:
   sigc::signal<void()> cancelSignal() { return mCancelSignal; }
   sigc::signal<void()> viewSignal() { return mViewSignal; }
   sigc::signal<void()> bringForwardSignal() { return mBringForwardSignal; }
+  sigc::signal<void()> sendBackwardSignal() { return mSendBackwardSignal; }
 
   sigc::signal<void(Model::Sketch*)> signalModelChanged() { return mModelChangedSignal; }
 
@@ -33,6 +34,7 @@ private:
   sigc::signal<void()> mCancelSignal;
   sigc::signal<void()> mViewSignal;
   sigc::signal<void()> mBringForwardSignal;
+  sigc::signal<void()> mSendBackwardSignal;
   sigc::signal<void(Model::Sketch*)> mModelChangedSignal;
 };
 

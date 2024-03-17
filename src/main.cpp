@@ -29,6 +29,7 @@ private:
     Cancel,
     View,
     BringForward,
+    SendBackward,
   };
 
   void onUndo(wxCommandEvent& event);
@@ -56,6 +57,7 @@ bool Application::OnInit()
   Bind(wxEVT_MENU, [this](wxCommandEvent&) { mViewContext.mCancelSignal.emit(); }, ID::Cancel);
   Bind(wxEVT_MENU, [this](wxCommandEvent&) { mViewContext.mViewSignal.emit(); }, ID::View);
   Bind(wxEVT_MENU, [this](wxCommandEvent&) { mViewContext.mBringForwardSignal.emit(); }, ID::BringForward);
+  Bind(wxEVT_MENU, [this](wxCommandEvent&) { mViewContext.mSendBackwardSignal.emit(); }, ID::SendBackward);
 
   mMenuBar = new wxMenuBar;
 
@@ -82,6 +84,7 @@ bool Application::OnInit()
   editMenu->AppendSeparator();
 
   editMenu->Append(ID::BringForward, "Bring &Forward\tPageUp");
+  editMenu->Append(ID::SendBackward, "Send &Backward\tPageDown");
 
   mModel = new Model::Sketch;
 

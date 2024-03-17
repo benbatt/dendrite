@@ -67,6 +67,25 @@ void Sketch::bringPathForward(const ID<Model::Path>& id)
     "Bring path forward");
 }
 
+void Sketch::sendPathBackward(const ID<Model::Path>& id)
+{
+  Model::Sketch::DrawOrder& drawOrder = mModel->mDrawOrder;
+  auto it = std::find(drawOrder.begin(), drawOrder.end(), id);
+
+  assert(it != drawOrder.end());
+
+  int index = std::distance(drawOrder.begin(), it);
+
+  if (index == 0) {
+    return;
+  }
+
+  mUndoManager->pushCommand(
+    [=]() { std::swap(mModel->mDrawOrder[index], mModel->mDrawOrder[index - 1]); },
+    [=]() { std::swap(mModel->mDrawOrder[index], mModel->mDrawOrder[index - 1]); },
+    "Send path backward");
+}
+
 void Sketch::removeNode(const ID<Model::Node>& nodeID)
 {
   const Model::Node* node = mModel->node(nodeID);

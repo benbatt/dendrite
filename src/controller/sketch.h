@@ -25,6 +25,7 @@ public:
   ControlPoint controllerForControlPoint(const ID<Model::ControlPoint>& id);
 
   void bringPathForward(const ID<Model::Path>& id);
+  void sendPathBackward(const ID<Model::Path>& id);
   void removeNode(const ID<Model::Node>& id);
 
 private:

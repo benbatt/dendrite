@@ -82,6 +82,7 @@ private:
   void activateMoveMode();
   void activateViewMode();
   void bringForward();
+  void sendBackward();
   void onCancel();
   void setModel(Model::Sketch* model);
 

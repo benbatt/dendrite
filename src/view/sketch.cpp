@@ -586,6 +586,7 @@ Sketch::Sketch(wxWindow* parent, Model::Sketch* model, Controller::UndoManager *
   context.viewSignal().connect(sigc::mem_fun(*this, &Sketch::activateViewMode));
   context.cancelSignal().connect(sigc::mem_fun(*this, &Sketch::onCancel));
   context.bringForwardSignal().connect(sigc::mem_fun(*this, &Sketch::bringForward));
+  context.sendBackwardSignal().connect(sigc::mem_fun(*this, &Sketch::sendBackward));
   context.signalModelChanged().connect(sigc::mem_fun(*this, &Sketch::setModel));
 
   Bind(wxEVT_LEFT_DOWN, &Sketch::onPointerPressed, this);
@@ -848,6 +849,15 @@ void Sketch::bringForward()
 {
   if (mSelectedPath) {
     mController->bringPathForward(mSelectedPath);
+
+    Refresh();
+  }
+}
+
+void Sketch::sendBackward()
+{
+  if (mSelectedPath) {
+    mController->sendPathBackward(mSelectedPath);
 
     Refresh();
   }
