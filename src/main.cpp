@@ -81,7 +81,7 @@ bool Application::OnInit()
 
   editMenu->AppendSeparator();
 
-  editMenu->Append(ID::BringForward, "Bring &Forward");
+  editMenu->Append(ID::BringForward, "Bring &Forward\tPageUp");
 
   mModel = new Model::Sketch;
 
