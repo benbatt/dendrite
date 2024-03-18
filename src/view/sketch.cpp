@@ -742,21 +742,52 @@ void Sketch::drawTangents(cairo_t* context)
 
 ID<Model::Path> findPath(Model::Sketch* sketch, double x, double y)
 {
-  cairo_surface_t* surface = cairo_image_surface_create(CAIRO_FORMAT_A8, 1, 1);
+  cairo_format_t format = CAIRO_FORMAT_A8;
+  const int SurfaceSize = 11;
+  const int Offset = 5;
+  cairo_surface_t* surface = cairo_image_surface_create(format, SurfaceSize, SurfaceSize);
   cairo_t* context = cairo_create(surface);
+
+  cairo_translate(context, -x + Offset, -y + Offset);
+
+  cairo_set_antialias(context, CAIRO_ANTIALIAS_NONE);
   cairo_set_line_width(context, 4);
 
-  for (auto current : sketch->paths()) {
+  ID<Model::Path> id;
+
+  for (auto it = sketch->drawOrder().rbegin(); it != sketch->drawOrder().rend(); ++it) {
+    cairo_set_source_rgba(context, 0, 0, 0, 0);
+    cairo_paint(context);
+
     cairo_new_path(context);
 
-    if (pathToCairo(context, current.second, sketch)) {
-      if (cairo_in_stroke(context, x, y)) {
-        return current.first;
+    Model::Path* path = sketch->path(*it);
+
+    if (pathToCairo(context, path, sketch)) {
+      cairo_set_source_rgba(context, 1, 1, 1, 1);
+      cairo_stroke_preserve(context);
+
+      if (path->isFilled()) {
+        cairo_fill(context);
+      }
+
+      cairo_surface_flush(surface);
+
+      int stride = cairo_format_stride_for_width(format, SurfaceSize);
+      unsigned char* imageData = cairo_image_surface_get_data(surface);
+      unsigned char* pixel = imageData + (Offset * stride) + Offset;
+
+      if (*pixel != 0) {
+        id = *it;
+        break;
       }
     }
   }
 
-  return ID<Model::Path>();
+  cairo_destroy(context);
+  cairo_surface_destroy(surface);
+
+  return id;
 }
 
 void Sketch::onPointerPressed(wxMouseEvent& event)
