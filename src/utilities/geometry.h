@@ -26,3 +26,15 @@ struct Point
   double x;
   double y;
 };
+
+struct Rectangle
+{
+  Rectangle normalised() const;
+  double width() const { return right - left; }
+  double height() const { return bottom - top; }
+
+  double left;
+  double top;
+  double right;
+  double bottom;
+};

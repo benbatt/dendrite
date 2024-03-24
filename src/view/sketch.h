@@ -5,6 +5,8 @@
 #include "utilities/geometry.h"
 
 #include <cairo.h>
+#include <set>
+#include <wx/mousemanager.h>
 #include <wx/wx.h>
 
 namespace Controller
@@ -94,6 +96,22 @@ private:
 
   ID<Model::Node> nodeIDForHandle(const Handle& handle);
 
+  class MouseEventsManager : public wxMouseEventsManager
+  {
+  public:
+    MouseEventsManager(Sketch* sketch);
+
+    bool MouseClicked(int item) override;
+    bool MouseDragBegin(int item, const wxPoint& position) override;
+    void MouseDragCancelled(int item) override;
+    void MouseDragEnd(int item, const wxPoint& position) override;
+    void MouseDragging(int item, const wxPoint& position) override;
+    int MouseHitTest(const wxPoint& position) override;
+
+  private:
+    Sketch* mSketch;
+  };
+
   class Mode
   {
   public:
@@ -114,13 +132,18 @@ private:
   void cancelActiveMode();
   void cancelModeStack();
 
+  MouseEventsManager mMouseEventsManager;
+
   Model::Sketch* mModel;
   Controller::Sketch* mController;
   Controller::UndoManager* mUndoManager;
   std::list<Mode*> mModeStack;
 
   Handle mHoverHandle;
-  ID<Model::Path> mSelectedPath;
+  std::set<ID<Model::Path>> mSelectedPaths;
+
+  bool mDragging;
+  Rectangle mDragArea;
 };
 
 }

@@ -59,3 +59,13 @@ Vector Point::operator-(const Point& p) const
 {
   return { x - p.x, y - p.y };
 }
+
+Rectangle Rectangle::normalised() const
+{
+  return Rectangle {
+    std::min(left, right),
+    std::min(top, bottom),
+    std::max(left, right),
+    std::max(top, bottom),
+  };
+}

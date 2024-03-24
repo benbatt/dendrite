@@ -13,6 +13,9 @@ wxwidgets = dependency('wxwidgets', version: '>= 3.2.0', modules: [ 'std' ])
 src = include_directories('src')
 
 if build_machine.system() == 'windows'
+  # reduce namespace pollution by windows.h
+  add_project_arguments('-DNOGDI', language: 'cpp')
+
   windows = import('windows')
   sources += windows.compile_resources('platforms/windows/resources.rc',
     include_directories: wxwidgets.get_variable('rescomp').split()[2])

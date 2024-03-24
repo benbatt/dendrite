@@ -14,10 +14,11 @@ public:
   {}
 
   IDValue value() const { return mValue; }
+  bool isValid() const { return mValue != 0; }
 
   bool operator==(const ID& other) const { return mValue == other.mValue; }
   bool operator!=(const ID& other) const { return !(*this == other); }
-  operator bool() const { return mValue != 0; }
+  bool operator<(const ID& other) const { return mValue < other.mValue; }
 
 private:
   IDValue mValue;

@@ -572,9 +572,11 @@ SketchModeDelete SketchModeDelete::sInstance;
 
 Sketch::Sketch(wxWindow* parent, Model::Sketch* model, Controller::UndoManager *undoManager, Context& context)
   : wxControl(parent, wxID_ANY)
+  , mMouseEventsManager(this)
   , mModel(nullptr)
   , mController(nullptr)
   , mUndoManager(undoManager)
+  , mDragging(false)
 {
   SetBackgroundStyle(wxBG_STYLE_PAINT);
 
@@ -642,18 +644,16 @@ void Sketch::onPaint(wxPaintEvent& event)
   cairo_set_source_rgb(context, 0.7, 0.7, 0.7);
   cairo_paint(context);
 
-  bool drawExtents = false;
-  double xMin, xMax, yMin, yMax;
+  std::vector<Rectangle> extents;
 
   for (auto pathID : mModel->drawOrder()) {
     const Model::Path* path = mModel->path(pathID);
 
-    bool selected = (pathID == mSelectedPath);
-
     if (pathToCairo(context, path, mModel)) {
-      if (selected) {
-        cairo_path_extents(context, &xMin, &yMin, &xMax, &yMax);
-        drawExtents = true;
+      if (mSelectedPaths.count(pathID) > 0) {
+        Rectangle r;
+        cairo_path_extents(context, &r.left, &r.top, &r.right, &r.bottom);
+        extents.push_back(r);
       }
 
       {
@@ -673,12 +673,15 @@ void Sketch::onPaint(wxPaintEvent& event)
     }
   }
 
-  if (drawExtents) {
-    const double DashLength = 2;
+  const double DashLength = 2;
 
+  if (!extents.empty()) {
     cairo_save(context);
 
-    cairo_rectangle(context, xMin, yMin, xMax - xMin, yMax - yMin);
+    for (auto rectangle : extents) {
+      cairo_rectangle(context, rectangle.left, rectangle.top, rectangle.width(), rectangle.height());
+    }
+
     cairo_set_source_rgb(context, 0, 0, 0);
     cairo_set_line_width(context, 1);
     cairo_set_dash(context, &DashLength, 1, 0);
@@ -689,6 +692,21 @@ void Sketch::onPaint(wxPaintEvent& event)
 
   for (auto it = mModeStack.rbegin(); it != mModeStack.rend(); ++it) {
     (*it)->draw(*this, context, size.GetWidth(), size.GetHeight());
+  }
+
+  if (mDragging) {
+    Rectangle rectangle = mDragArea.normalised();
+
+    cairo_save(context);
+
+    cairo_rectangle(context, rectangle.left, rectangle.top, rectangle.width(), rectangle.height());
+    cairo_set_source_rgb(context, 1, 1, 1);
+    cairo_set_line_width(context, 1);
+    cairo_set_dash(context, &DashLength, 1, 0);
+    cairo_set_operator(context, CAIRO_OPERATOR_DIFFERENCE);
+    cairo_stroke(context);
+
+    cairo_restore(context);
   }
 
   cairo_destroy(context);
@@ -790,6 +808,35 @@ ID<Model::Path> findPath(Model::Sketch* sketch, double x, double y)
   return id;
 }
 
+template<class T_Process>
+void forEachPathInRectangle(Model::Sketch* sketch, const Rectangle& rectangle, T_Process process)
+{
+  cairo_format_t format = CAIRO_FORMAT_A8;
+  const int SurfaceSize = 11;
+  cairo_surface_t* surface = cairo_image_surface_create(format, SurfaceSize, SurfaceSize);
+  cairo_t* context = cairo_create(surface);
+
+  cairo_set_line_width(context, 2);
+
+  const Rectangle normalised = rectangle.normalised();
+
+  for (auto [id, path] : sketch->paths()) {
+    cairo_new_path(context);
+
+    if (pathToCairo(context, path, sketch)) {
+      double left, top, right, bottom;
+      cairo_stroke_extents(context, &left, &top, &right, &bottom);
+
+      if (normalised.left < left && normalised.top < top && right < normalised.right && bottom < normalised.bottom) {
+        process(id);
+      }
+    }
+  }
+
+  cairo_destroy(context);
+  cairo_surface_destroy(surface);
+}
+
 void Sketch::onPointerPressed(wxMouseEvent& event)
 {
   double x = event.GetX();
@@ -797,13 +844,6 @@ void Sketch::onPointerPressed(wxMouseEvent& event)
 
   if (!mModeStack.empty()) {
     mModeStack.front()->onPointerPressed(*this, x, y);
-  } else {
-    ID<Model::Path> newSelectedPath = findPath(mModel, x, y);
-
-    if (newSelectedPath != mSelectedPath) {
-      mSelectedPath = newSelectedPath;
-      Refresh();
-    }
   }
 
   event.Skip();
@@ -878,8 +918,14 @@ void Sketch::activateViewMode()
 
 void Sketch::bringForward()
 {
-  if (mSelectedPath) {
-    mController->bringPathForward(mSelectedPath);
+  if (!mSelectedPaths.empty()) {
+    mUndoManager->beginGroup();
+
+    for (auto id : mSelectedPaths) {
+      mController->bringPathForward(id);
+    }
+
+    mUndoManager->endGroup();
 
     Refresh();
   }
@@ -887,8 +933,14 @@ void Sketch::bringForward()
 
 void Sketch::sendBackward()
 {
-  if (mSelectedPath) {
-    mController->sendPathBackward(mSelectedPath);
+  if (!mSelectedPaths.empty()) {
+    mUndoManager->beginGroup();
+
+    for (auto id : mSelectedPaths) {
+      mController->sendPathBackward(id);
+    }
+
+    mUndoManager->endGroup();
 
     Refresh();
   }
@@ -907,8 +959,14 @@ void Sketch::onCancel()
 
 void Sketch::setStrokeColour(const wxColour& colour)
 {
-  if (mSelectedPath) {
-    mController->controllerForPath(mSelectedPath).setStrokeColour(Colour(colour.GetRGBA()));
+  if (!mSelectedPaths.empty()) {
+    mUndoManager->beginGroup();
+
+    for (auto id : mSelectedPaths) {
+      mController->controllerForPath(id).setStrokeColour(Colour(colour.GetRGBA()));
+    }
+
+    mUndoManager->endGroup();
 
     Refresh();
   }
@@ -916,8 +974,14 @@ void Sketch::setStrokeColour(const wxColour& colour)
 
 void Sketch::setFillColour(const wxColour& colour)
 {
-  if (mSelectedPath) {
-    mController->controllerForPath(mSelectedPath).setFillColour(Colour(colour.GetRGBA()));
+  if (!mSelectedPaths.empty()) {
+    mUndoManager->beginGroup();
+
+    for (auto id : mSelectedPaths) {
+      mController->controllerForPath(id).setFillColour(Colour(colour.GetRGBA()));
+    }
+
+    mUndoManager->endGroup();
 
     Refresh();
   }
@@ -991,6 +1055,102 @@ void Sketch::setHandlePosition(const Handle& handle, const Point& position)
     case Handle::Type::ControlPoint:
       mController->controllerForControlPoint(handle.id<Model::ControlPoint>()).setPosition(position);
       break;
+  }
+}
+
+Sketch::MouseEventsManager::MouseEventsManager(Sketch* sketch)
+  : wxMouseEventsManager(sketch)
+  , mSketch(sketch)
+{
+}
+
+bool Sketch::MouseEventsManager::MouseClicked(int item)
+{
+  if (mSketch->mModeStack.empty()) {
+    bool replaceSelection = !wxGetKeyState(WXK_SHIFT);
+
+    if (replaceSelection) {
+      mSketch->mSelectedPaths.clear();
+    }
+
+    ID<Model::Path> id(item);
+
+    if (id.isValid()) {
+      if (replaceSelection || mSketch->mSelectedPaths.count(id) == 0) {
+        mSketch->mSelectedPaths.insert(id);
+      } else {
+        mSketch->mSelectedPaths.erase(id);
+      }
+    }
+
+    mSketch->Refresh();
+
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool Sketch::MouseEventsManager::MouseDragBegin(int item, const wxPoint& position)
+{
+  mSketch->mDragging = true;
+  mSketch->mDragArea.right = position.x;
+  mSketch->mDragArea.bottom = position.y;
+
+  mSketch->Refresh();
+
+  return true;
+}
+
+void Sketch::MouseEventsManager::MouseDragCancelled(int item)
+{
+  mSketch->mDragging = false;
+  mSketch->Refresh();
+}
+
+void Sketch::MouseEventsManager::MouseDragEnd(int item, const wxPoint& position)
+{
+  mSketch->mDragging = false;
+
+  bool add = wxGetKeyState(WXK_SHIFT);
+  bool remove = wxGetKeyState(WXK_CONTROL);
+
+  if (!add && !remove) {
+    // Replace selection
+    mSketch->mSelectedPaths.clear();
+    add = true;
+  }
+
+  forEachPathInRectangle(mSketch->mModel, mSketch->mDragArea,
+    [this, add](const ID<Model::Path>& id)
+    {
+      if (add) {
+        mSketch->mSelectedPaths.insert(id);
+      } else {
+        mSketch->mSelectedPaths.erase(id);
+      }
+    });
+  mSketch->Refresh();
+}
+
+void Sketch::MouseEventsManager::MouseDragging(int item, const wxPoint& position)
+{
+  mSketch->mDragArea.right = position.x;
+  mSketch->mDragArea.bottom = position.y;
+  mSketch->Refresh();
+}
+
+int Sketch::MouseEventsManager::MouseHitTest(const wxPoint& position)
+{
+  if (mSketch->mModeStack.empty()) {
+    ID<Model::Path> pathID = findPath(mSketch->mModel, position.x, position.y);
+
+    mSketch->mDragArea.left = position.x;
+    mSketch->mDragArea.top = position.y;
+
+    return pathID.value();
+  } else {
+    return wxNOT_FOUND;
   }
 }
 
