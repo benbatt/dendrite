@@ -4,6 +4,7 @@ struct Vector
 {
   double length() const;
   double dot(const Vector& other) const;
+  double cross(const Vector& other) const;
   Vector normalised() const;
   Vector operator-() const;
   Vector operator*(double scale) const;
@@ -30,6 +31,10 @@ struct Point
 struct Rectangle
 {
   Rectangle normalised() const;
+  bool contains(const Rectangle& other) const;
+  bool contains(const Point& point) const;
+  bool intersectsLine(const Point& p1, const Point& p2) const;
+
   double width() const { return right - left; }
   double height() const { return bottom - top; }
 

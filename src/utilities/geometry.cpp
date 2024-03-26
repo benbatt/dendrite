@@ -12,6 +12,11 @@ double Vector::dot(const Vector& other) const
   return x * other.x + y * other.y;
 }
 
+double Vector::cross(const Vector& other) const
+{
+  return x * other.y - y * other.x;
+}
+
 Vector Vector::normalised() const
 {
   double length = this->length();
@@ -68,4 +73,44 @@ Rectangle Rectangle::normalised() const
     std::max(left, right),
     std::max(top, bottom),
   };
+}
+
+bool Rectangle::contains(const Rectangle& other) const
+{
+  return left <= other.left && top <= other.top && other.right <= right && other.bottom <= bottom;
+}
+
+bool Rectangle::contains(const Point& point) const
+{
+  return left <= point.x && point.x < right && top <= point.y && point.y < bottom;
+}
+
+bool Rectangle::intersectsLine(const Point& p1, const Point& p2) const
+{
+  if (contains(p1) || contains(p2)) {
+    return true;
+  }
+
+  const Vector delta = p2 - p1;
+
+  auto crossing = [](double a, double b, double threshold) { return (a < threshold) != (b < threshold); };
+  auto direction = [p1, delta](double x, double y) { return std::signbit(delta.cross(Point{x, y} - p1)); };
+
+  if (crossing(p1.x, p2.x, left) && direction(left, top) != direction(left, bottom)) {
+    return true;
+  }
+
+  if (crossing(p1.x, p2.x, right) && direction(right, top) != direction(right, bottom)) {
+    return true;
+  }
+
+  if (crossing(p1.y, p2.y, top) && direction(left, top) != direction(right, top)) {
+    return true;
+  }
+
+  if (crossing(p1.y, p2.y, bottom) && direction(left, bottom) != direction(right, bottom)) {
+    return true;
+  }
+
+  return false;
 }

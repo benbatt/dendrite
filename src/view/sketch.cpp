@@ -808,8 +808,37 @@ ID<Model::Path> findPath(Model::Sketch* sketch, double x, double y)
   return id;
 }
 
+bool rectangleIntersectsCairoPath(const Rectangle& rectangle, cairo_path_t* path)
+{
+  Point previousPoint = { 0, 0 };
+
+  for (int i = 0; i < path->num_data; i += path->data[i].header.length) {
+    cairo_path_data_t* data = &path->data[i];
+
+    switch (data->header.type) {
+    case CAIRO_PATH_MOVE_TO:
+      previousPoint = Point{ data[1].point.x, data[1].point.y };
+      break;
+    case CAIRO_PATH_LINE_TO:
+      {
+        Point currentPoint = { data[1].point.x, data[1].point.y };
+
+        if (rectangle.intersectsLine(previousPoint, currentPoint)) {
+          return true;
+        }
+
+        previousPoint = currentPoint;
+
+        break;
+      }
+    }
+  }
+
+  return false;
+}
+
 template<class T_Process>
-void forEachPathInRectangle(Model::Sketch* sketch, const Rectangle& rectangle, T_Process process)
+void forEachPathInDragArea(Model::Sketch* sketch, const Rectangle& area, T_Process process)
 {
   cairo_format_t format = CAIRO_FORMAT_A8;
   const int SurfaceSize = 11;
@@ -818,17 +847,29 @@ void forEachPathInRectangle(Model::Sketch* sketch, const Rectangle& rectangle, T
 
   cairo_set_line_width(context, 2);
 
-  const Rectangle normalised = rectangle.normalised();
+  bool crossing = area.right < area.left;
+
+  const Rectangle rectangle = area.normalised();
 
   for (auto [id, path] : sketch->paths()) {
     cairo_new_path(context);
 
     if (pathToCairo(context, path, sketch)) {
-      double left, top, right, bottom;
-      cairo_stroke_extents(context, &left, &top, &right, &bottom);
+      if (crossing) {
+        cairo_path_t* cairoPath = cairo_copy_path_flat(context);
 
-      if (normalised.left < left && normalised.top < top && right < normalised.right && bottom < normalised.bottom) {
-        process(id);
+        if (rectangleIntersectsCairoPath(rectangle, cairoPath)) {
+          process(id);
+        }
+
+        cairo_path_destroy(cairoPath);
+      } else {
+        Rectangle extents;
+        cairo_stroke_extents(context, &extents.left, &extents.top, &extents.right, &extents.bottom);
+
+        if (rectangle.contains(extents)) {
+          process(id);
+        }
       }
     }
   }
@@ -1121,7 +1162,7 @@ void Sketch::MouseEventsManager::MouseDragEnd(int item, const wxPoint& position)
     add = true;
   }
 
-  forEachPathInRectangle(mSketch->mModel, mSketch->mDragArea,
+  forEachPathInDragArea(mSketch->mModel, mSketch->mDragArea,
     [this, add](const ID<Model::Path>& id)
     {
       if (add) {
