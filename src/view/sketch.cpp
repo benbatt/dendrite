@@ -758,52 +758,86 @@ void Sketch::drawTangents(cairo_t* context)
   cairo_stroke(context);
 }
 
-ID<Model::Path> findPath(Model::Sketch* sketch, double x, double y)
+cairo_t* createCollisionDetectionContext()
 {
-  cairo_format_t format = CAIRO_FORMAT_A8;
+  const cairo_format_t format = CAIRO_FORMAT_A8;
   const int SurfaceSize = 11;
-  const int Offset = 5;
   cairo_surface_t* surface = cairo_image_surface_create(format, SurfaceSize, SurfaceSize);
+
   cairo_t* context = cairo_create(surface);
 
-  cairo_translate(context, -x + Offset, -y + Offset);
-
   cairo_set_antialias(context, CAIRO_ANTIALIAS_NONE);
+
+  cairo_surface_destroy(surface);
+
+  return context;
+}
+
+bool pointInPath(cairo_t* context, Model::Sketch* sketch, Model::Path* path, double x, double y)
+{
+  cairo_save(context);
+
+  cairo_surface_t* surface = cairo_get_target(context);
+
+  assert(cairo_surface_get_type(surface) == CAIRO_SURFACE_TYPE_IMAGE);
+
+  int width = cairo_image_surface_get_width(surface);
+  int height = cairo_image_surface_get_height(surface);
+
+  cairo_set_source_rgba(context, 0, 0, 0, 0);
+  cairo_set_operator(context, CAIRO_OPERATOR_SOURCE);
+  cairo_paint(context);
+
+  cairo_new_path(context);
+
+  const int OffsetX = width / 2;
+  const int OffsetY = height / 2;
+
+  cairo_translate(context, -x + OffsetX, -y + OffsetY);
+
+  bool result = false;
+
+  if (pathToCairo(context, path, sketch)) {
+    cairo_set_source_rgba(context, 1, 1, 1, 1);
+    cairo_set_operator(context, CAIRO_OPERATOR_OVER);
+    cairo_stroke_preserve(context);
+
+    if (path->isFilled()) {
+      cairo_fill(context);
+    }
+
+    cairo_surface_flush(surface);
+
+    int stride = cairo_image_surface_get_stride(surface);
+    unsigned char* imageData = cairo_image_surface_get_data(surface);
+    unsigned char* pixel = imageData + (OffsetY * stride) + OffsetX;
+
+    result = *pixel != 0;
+  }
+
+  cairo_restore(context);
+
+  return result;
+}
+
+ID<Model::Path> findPath(Model::Sketch* sketch, double x, double y)
+{
+  cairo_t* context = createCollisionDetectionContext();
+
   cairo_set_line_width(context, 4);
 
   ID<Model::Path> id;
 
   for (auto it = sketch->drawOrder().rbegin(); it != sketch->drawOrder().rend(); ++it) {
-    cairo_set_source_rgba(context, 0, 0, 0, 0);
-    cairo_paint(context);
-
-    cairo_new_path(context);
-
     Model::Path* path = sketch->path(*it);
 
-    if (pathToCairo(context, path, sketch)) {
-      cairo_set_source_rgba(context, 1, 1, 1, 1);
-      cairo_stroke_preserve(context);
-
-      if (path->isFilled()) {
-        cairo_fill(context);
-      }
-
-      cairo_surface_flush(surface);
-
-      int stride = cairo_format_stride_for_width(format, SurfaceSize);
-      unsigned char* imageData = cairo_image_surface_get_data(surface);
-      unsigned char* pixel = imageData + (Offset * stride) + Offset;
-
-      if (*pixel != 0) {
-        id = *it;
-        break;
-      }
+    if (pointInPath(context, sketch, path, x, y)) {
+      id = *it;
+      break;
     }
   }
 
   cairo_destroy(context);
-  cairo_surface_destroy(surface);
 
   return id;
 }
@@ -854,12 +888,8 @@ bool rectangleIntersectsCairoPath(const Rectangle& rectangle, cairo_path_t* path
 template<class T_Process>
 void forEachPathInDragArea(Model::Sketch* sketch, const Rectangle& area, T_Process process)
 {
-  cairo_format_t format = CAIRO_FORMAT_A8;
-  const int SurfaceSize = 11;
-  cairo_surface_t* surface = cairo_image_surface_create(format, SurfaceSize, SurfaceSize);
-  cairo_t* context = cairo_create(surface);
+  cairo_t* context = createCollisionDetectionContext();
 
-  cairo_set_antialias(context, CAIRO_ANTIALIAS_NONE);
   cairo_set_line_width(context, 2);
 
   bool crossing = area.right < area.left;
@@ -872,49 +902,21 @@ void forEachPathInDragArea(Model::Sketch* sketch, const Rectangle& area, T_Proce
     bool inDragArea = false;
 
     if (crossing && path->isFilled()) {
-      cairo_save(context);
-
-      cairo_set_source_rgba(context, 0, 0, 0, 0);
-      cairo_set_operator(context, CAIRO_OPERATOR_SOURCE);
-      cairo_paint(context);
-
-      const int Offset = SurfaceSize / 2 + 1;
-
-      cairo_translate(context, -rectangle.left + Offset, -rectangle.top + Offset);
-
-      if (pathToCairo(context, path, sketch)) {
-        cairo_set_source_rgba(context, 1, 1, 1, 1);
-        cairo_set_operator(context, CAIRO_OPERATOR_OVER);
-        cairo_fill(context);
-
-        cairo_surface_flush(surface);
-
-        int stride = cairo_format_stride_for_width(format, SurfaceSize);
-        unsigned char* imageData = cairo_image_surface_get_data(surface);
-        unsigned char* pixel = imageData + (Offset * stride) + Offset;
-
-        inDragArea = *pixel != 0;
-      }
-
-      cairo_restore(context);
+      inDragArea = pointInPath(context, sketch, path, rectangle.left, rectangle.top);
     }
 
     if (!inDragArea && pathToCairo(context, path, sketch)) {
       if (crossing) {
         cairo_path_t* cairoPath = cairo_copy_path_flat(context);
 
-        if (rectangleIntersectsCairoPath(rectangle, cairoPath, path->isFilled() && !path->isClosed())) {
-          inDragArea = true;
-        }
+        inDragArea = rectangleIntersectsCairoPath(rectangle, cairoPath, path->isFilled() && !path->isClosed());
 
         cairo_path_destroy(cairoPath);
       } else {
         Rectangle extents;
         cairo_stroke_extents(context, &extents.left, &extents.top, &extents.right, &extents.bottom);
 
-        if (rectangle.contains(extents)) {
-          inDragArea = true;
-        }
+        inDragArea = rectangle.contains(extents);
       }
     }
 
@@ -924,7 +926,6 @@ void forEachPathInDragArea(Model::Sketch* sketch, const Rectangle& area, T_Proce
   }
 
   cairo_destroy(context);
-  cairo_surface_destroy(surface);
 }
 
 void Sketch::onPointerPressed(wxMouseEvent& event)
