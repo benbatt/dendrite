@@ -2,6 +2,7 @@
 
 #include "utilities/colour.h"
 #include "utilities/id.h"
+#include "utilities/geometry.h"
 
 #include <vector>
 
@@ -42,6 +43,7 @@ public:
   const EntryList& entries() const { return mEntries; }
   bool isClosed() const { return (mFlags & Flag_Closed) != 0; }
   bool isFilled() const { return (mFlags & Flag_Filled) != 0; }
+  const Vector& translation() const { return mTranslation; }
   const Colour& strokeColour() const { return mStrokeColour; }
   const Colour& fillColour() const { return mFillColour; }
 
@@ -55,6 +57,7 @@ private:
   };
 
   EntryList mEntries;
+  Vector mTranslation;
   Colour mStrokeColour;
   Colour mFillColour;
   unsigned int mFlags;

@@ -38,6 +38,7 @@ public:
 
   void addEntry(int index, const Model::Path::Entry& entry);
   void removeEntry(int index);
+  void setTranslation(const Vector& translation);
   void setStrokeColour(const Colour& colour);
   void setFillColour(const Colour& colour);
 
@@ -47,8 +48,10 @@ private:
   friend class AddNodeCommand;
   friend class AddEntryCommand;
   friend class RemoveEntryCommand;
+  friend class SetTranslationCommand;
 
   static Model::Path::EntryList& entries(Model::Path* path);
+  static Vector& translation(Model::Path* path);
 
   UndoManager* mUndoManager;
   Accessor* mAccessor;

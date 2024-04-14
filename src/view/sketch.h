@@ -39,16 +39,19 @@ public:
     Handle()
       : mType(Null)
       , mID(0)
+      , mPath(0)
     {}
 
-    Handle(const ID<Model::ControlPoint>& id)
+    Handle(const ID<Model::ControlPoint>& id, const ID<Model::Path>& path)
       : mType(ControlPoint)
       , mID(id.value())
+      , mPath(path)
     {}
 
-    Handle(const ID<Model::Node>& id)
+    Handle(const ID<Model::Node>& id, const ID<Model::Path>& path)
       : mType(Node)
       , mID(id.value())
+      , mPath(path)
     {}
 
     template<class TModel>
@@ -59,11 +62,15 @@ public:
     Model::Node* node(const Model::Sketch* sketch) const;
 
     operator bool() const { return mID > 0; }
-    bool operator==(const Handle& other) const { return mType == other.mType && mID == other.mID; }
+    bool operator==(const Handle& other) const
+    {
+      return mType == other.mType && mID == other.mID && mPath == other.mPath;
+    }
     bool operator!=(const Handle& other) const { return !(*this == other); }
 
     Type mType;
     IDValue mID;
+    ID<Model::Path> mPath;
   };
 
 private:
@@ -71,6 +78,7 @@ private:
   friend class SketchModeAdd;
   friend class SketchModeDelete;
   friend class SketchModePlace;
+  friend class SketchModeTranslate;
 
   void onPaint(wxPaintEvent& event);
   void drawTangents(cairo_t* context);

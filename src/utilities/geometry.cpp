@@ -28,6 +28,16 @@ Vector Vector::normalised() const
   }
 }
 
+Vector Vector::operator+(const Vector& other) const
+{
+  return { x + other.x, y + other.y };
+}
+
+Vector Vector::operator-(const Vector& other) const
+{
+  return { x - other.x, y - other.y };
+}
+
 Vector Vector::operator-() const
 {
   return { -x, -y };

@@ -6,6 +6,8 @@ struct Vector
   double dot(const Vector& other) const;
   double cross(const Vector& other) const;
   Vector normalised() const;
+  Vector operator+(const Vector& other) const;
+  Vector operator-(const Vector& other) const;
   Vector operator-() const;
   Vector operator*(double scale) const;
 

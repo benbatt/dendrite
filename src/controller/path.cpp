@@ -219,6 +219,58 @@ void Path::removeEntry(int index)
   mUndoManager->pushCommand(new RemoveEntryCommand(mAccessor, mID, index));
 }
 
+class SetTranslationCommand : public UndoManager::AutoIDCommand<SetTranslationCommand>
+{
+public:
+  SetTranslationCommand(Path::Accessor* pathAccessor, const ID<Model::Path>& id, const Vector& translation)
+    : mAccessor(pathAccessor)
+    , mID(id)
+    , mTranslation(translation)
+    , mOldTranslation(pathAccessor->getPath(id)->translation())
+  {
+  }
+
+  void redo() override
+  { 
+    Model::Path* path = mAccessor->getPath(mID);
+    Path::translation(path) = mTranslation;
+  }
+
+  void undo() override
+  { 
+    Model::Path* path = mAccessor->getPath(mID);
+    Path::translation(path) = mOldTranslation;
+  }
+
+  std::string description() override
+  {
+    return "Move path";
+  }
+
+  bool mergeWith(UndoCommand* other) override
+  {
+    SetTranslationCommand* command = static_cast<SetTranslationCommand*>(other);
+
+    if (command->mAccessor == mAccessor && command->mID == mID) {
+      mTranslation = command->mTranslation;
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+private:
+  Path::Accessor* mAccessor;
+  ID<Model::Path> mID;
+  Vector mTranslation;
+  Vector mOldTranslation;
+};
+
+void Path::setTranslation(const Vector& translation)
+{
+  mUndoManager->pushCommand(new SetTranslationCommand(mAccessor, mID, translation));
+}
+
 void Path::setStrokeColour(const Colour& colour)
 {
   auto accessor = mAccessor;
@@ -272,6 +324,11 @@ void Path::setClosed(bool closed)
 Model::Path::EntryList& Path::entries(Model::Path* path)
 {
   return path->mEntries;
+}
+
+Vector& Path::translation(Model::Path* path)
+{
+  return path->mTranslation;
 }
 
 }
