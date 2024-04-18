@@ -22,6 +22,8 @@ enum class HandleStyle
 using NodeType = Model::Node::Type;
 using Handle = Sketch::Handle;
 
+ID<Model::Path> findPath(Model::Sketch* sketch, double x, double y);
+
 Model::ControlPoint* Handle::controlPoint(const Model::Sketch* sketch) const
 {
   return refersTo(ControlPoint) ? sketch->controlPoint(ID<Model::ControlPoint>(mID)) : nullptr;
@@ -276,6 +278,57 @@ private:
 
 SketchModePlace SketchModePlace::sInstance;
 
+class SketchModePlacePath : public Sketch::Mode
+{
+public:
+  SketchModePlacePath()
+  { }
+
+  void prepare(Sketch& sketch, const ID<Model::Path>& id, double mouseX, double mouseY)
+  {
+    Model::Path* path = sketch.mModel->path(id);
+    mID = id;
+    mPreviousPosition = Point{mouseX, mouseY};
+  }
+
+  void begin(Sketch& sketch) override
+  {
+    mPreviousCursor = sketch.GetCursor();
+    sketch.SetCursor(wxCURSOR_BLANK);
+  }
+
+  void end(Sketch& sketch) override
+  {
+    sketch.SetCursor(mPreviousCursor);
+  }
+
+  void onPointerPressed(Sketch& sketch, double x, double y) override
+  {
+    sketch.popMode(this);
+  }
+
+  bool onPointerMotion(Sketch& sketch, double x, double y) override
+  {
+    const Point position{x, y};
+
+    sketch.mController->movePath(mID, position - mPreviousPosition);
+    mPreviousPosition = position;
+
+    sketch.Refresh();
+    return true;
+  }
+
+  void onCancel(Sketch& sketch) override
+  {
+    sketch.mUndoManager->cancelGroup();
+  }
+
+private:
+  wxCursor mPreviousCursor;
+  ID<Model::Path> mID;
+  Point mPreviousPosition;
+};
+
 class SketchModeMove : public Sketch::Mode
 {
 public:
@@ -303,6 +356,13 @@ public:
 
       mPlaceMode.setDragHandle(sketch.mHoverHandle);
       sketch.pushMode(&mPlaceMode);
+    } else {
+      ID<Model::Path> id = findPath(sketch.mModel, x, y);
+
+      if (id.isValid()) {
+        mPlacePathMode.prepare(sketch, id, x, y);
+        sketch.pushMode(&mPlacePathMode);
+      }
     }
   }
 
@@ -314,6 +374,7 @@ public:
   }
 
   SketchModePlace mPlaceMode;
+  SketchModePlacePath mPlacePathMode;
 };
 
 SketchModeMove SketchModeMove::sInstance;
