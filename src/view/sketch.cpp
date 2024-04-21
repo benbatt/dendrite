@@ -51,8 +51,9 @@ HandleStyle handleStyle(NodeType nodeType, Handle::Type handleType)
 }
 
 const float HandleSize = 10;
+const double DashLength = 2;
 
-void drawHandle(cairo_t* context, HandleStyle style, const Point& position, bool hover)
+void drawHandle(cairo_t* context, HandleStyle style, const Point& position, bool hover, bool selected = false)
 {
   const float HalfSize = HandleSize / 2;
 
@@ -121,6 +122,13 @@ void drawHandle(cairo_t* context, HandleStyle style, const Point& position, bool
   cairo_set_source_rgb(context, 0, 0, 0);
   cairo_set_line_width(context, 2);
   cairo_stroke_preserve(context);
+
+  if (selected) {
+    cairo_set_source_rgb(context, 1, 1, 1);
+    cairo_set_dash(context, &DashLength, 1, 0);
+    cairo_stroke_preserve(context);
+    cairo_set_dash(context, nullptr, 0, 0);
+  }
 
   if (hover) {
     cairo_set_source_rgb(context, 1, 1, 1);
@@ -278,16 +286,15 @@ private:
 
 SketchModePlace SketchModePlace::sInstance;
 
-class SketchModePlacePath : public Sketch::Mode
+class SketchModePlaceSelection : public Sketch::Mode
 {
 public:
-  SketchModePlacePath()
+  SketchModePlaceSelection()
   { }
 
-  void prepare(Sketch& sketch, const ID<Model::Path>& id, double mouseX, double mouseY)
+  void prepare(const Controller::Selection& selection, double mouseX, double mouseY)
   {
-    Model::Path* path = sketch.mModel->path(id);
-    mID = id;
+    mSelection = selection;
     mPreviousPosition = Point{mouseX, mouseY};
   }
 
@@ -311,7 +318,7 @@ public:
   {
     const Point position{x, y};
 
-    sketch.mController->movePath(mID, position - mPreviousPosition);
+    sketch.mController->moveSelection(mSelection, position - mPreviousPosition);
     mPreviousPosition = position;
 
     sketch.Refresh();
@@ -325,7 +332,7 @@ public:
 
 private:
   wxCursor mPreviousCursor;
-  ID<Model::Path> mID;
+  Controller::Selection mSelection;
   Point mPreviousPosition;
 };
 
@@ -334,18 +341,33 @@ class SketchModeMove : public Sketch::Mode
 public:
   static SketchModeMove sInstance;
 
+  enum UpdateMode
+  {
+    Add,
+    Remove,
+  };
+
+  void begin(Sketch& sketch) override
+  {
+    mSelection.clear();
+
+    for (auto& id : sketch.mSelectedPaths) {
+      updateSelection(sketch.mModel->path(id), Add);
+    }
+  }
+
   void draw(Sketch& sketch, cairo_t* context, int width, int height) override
   {
     sketch.drawTangents(context);
 
-    for (auto current : sketch.mModel->nodes()) {
-      bool hover = sketch.mHoverHandle == current.first;
-      drawHandle(context, handleStyle(current.second->type(), Handle::Node), current.second->position(), hover);
+    for (auto [id, node] : sketch.mModel->nodes()) {
+      drawHandle(context, handleStyle(node->type(), Handle::Node), node->position(),
+        sketch.mHoverHandle == id, mSelection.mNodes.count(id) > 0);
     }
 
-    for (auto current : sketch.mModel->controlPoints()) {
-      bool hover = sketch.mHoverHandle == current.first;
-      drawHandle(context, handleStyle(NodeType::Sharp, Handle::ControlPoint), current.second->position(), hover);
+    for (auto [id, point] : sketch.mModel->controlPoints()) {
+      drawHandle(context, handleStyle(NodeType::Sharp, Handle::ControlPoint), point->position(),
+        sketch.mHoverHandle == id, mSelection.mControlPoints.count(id) > 0);
     }
   }
 
@@ -354,27 +376,69 @@ public:
     if (sketch.mHoverHandle) {
       sketch.mUndoManager->beginGroup();
 
-      mPlaceMode.setDragHandle(sketch.mHoverHandle);
-      sketch.pushMode(&mPlaceMode);
+      if (mSelection.isEmpty()) {
+        mPlaceMode.setDragHandle(sketch.mHoverHandle);
+        sketch.pushMode(&mPlaceMode);
+      } else {
+        mPlaceSelectionMode.prepare(mSelection, x, y);
+        sketch.pushMode(&mPlaceSelectionMode);
+      }
     } else {
       ID<Model::Path> id = findPath(sketch.mModel, x, y);
 
       if (id.isValid()) {
-        mPlacePathMode.prepare(sketch, id, x, y);
-        sketch.pushMode(&mPlacePathMode);
+        const Model::Path* path = sketch.mModel->path(id);
+        bool replaceSelection = !wxGetKeyState(WXK_SHIFT);
+
+        if (replaceSelection) {
+          mSelection.clear();
+          updateSelection(path, Add);
+        } else {
+          updateSelection(path, areAllPointsSelected(path) ? Remove : Add);
+        }
+
+        sketch.Refresh();
       }
     }
   }
 
   void onChildPopped(Sketch& sketch, Sketch::Mode* child) override
   {
-    if (child == &mPlaceMode) {
+    if (child == &mPlaceMode || child == &mPlaceSelectionMode) {
       sketch.mUndoManager->endGroup();
     }
   }
 
+private:
+  void updateSelection(const Model::Path* path, UpdateMode mode)
+  {
+    for (auto& entry : path->entries()) {
+      if (mode == Add) {
+        mSelection.mNodes.insert(entry.mNode);
+        mSelection.mControlPoints.insert(entry.mPreControl);
+        mSelection.mControlPoints.insert(entry.mPostControl);
+      } else {
+        mSelection.mNodes.erase(entry.mNode);
+        mSelection.mControlPoints.erase(entry.mPreControl);
+        mSelection.mControlPoints.erase(entry.mPostControl);
+      }
+    }
+  }
+
+  bool areAllPointsSelected(const Model::Path* path)
+  {
+    return std::all_of(path->entries().begin(), path->entries().end(),
+      [this](const Model::Path::Entry& entry)
+      {
+        return mSelection.mNodes.count(entry.mNode) > 0
+          && mSelection.mControlPoints.count(entry.mPreControl) > 0
+          && mSelection.mControlPoints.count(entry.mPostControl) > 0;
+      });
+  }
+
+  Controller::Selection mSelection;
   SketchModePlace mPlaceMode;
-  SketchModePlacePath mPlacePathMode;
+  SketchModePlaceSelection mPlaceSelectionMode;
 };
 
 SketchModeMove SketchModeMove::sInstance;
@@ -733,8 +797,6 @@ void Sketch::onPaint(wxPaintEvent& event)
       cairo_new_path(context);
     }
   }
-
-  const double DashLength = 2;
 
   if (!extents.empty()) {
     cairo_save(context);

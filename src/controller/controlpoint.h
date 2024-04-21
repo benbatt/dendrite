@@ -29,7 +29,7 @@ public:
   void setPosition(const Point& position);
 
 private:
-  friend class MovePathCommand;
+  friend class MoveSelectionCommand;
   friend class SetControlPointPositionCommand;
   friend class SetNodePositionCommand;
 

@@ -29,7 +29,7 @@ public:
   void setType(Type type);
 
 private:
-  friend class MovePathCommand;
+  friend class MoveSelectionCommand;
   friend class SetNodePositionCommand;
   friend class SetNodeTypeCommand;
   friend class Sketch;

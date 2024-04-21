@@ -8,10 +8,34 @@
 
 #include "utilities/id.h"
 
+#include <set>
+
 namespace Controller
 {
 
 class UndoManager;
+
+struct Selection
+{
+  void clear()
+  {
+    mNodes.clear();
+    mControlPoints.clear();
+  }
+
+  bool operator==(const Selection& other) const
+  {
+    return mNodes == other.mNodes && mControlPoints == other.mControlPoints;
+  }
+
+  bool isEmpty() const
+  {
+    return mNodes.empty() && mControlPoints.empty();
+  }
+
+  std::set<ID<Model::Node>> mNodes;
+  std::set<ID<Model::ControlPoint>> mControlPoints;
+};
 
 class Sketch : private ControlPoint::Accessor, private Node::Accessor, private Path::Accessor
 {
@@ -24,7 +48,7 @@ public:
   Node controllerForNode(const ID<Model::Node>& id);
   ControlPoint controllerForControlPoint(const ID<Model::ControlPoint>& id);
 
-  void movePath(const ID<Model::Path>& id, const Vector& offset);
+  void moveSelection(const Selection& selection, const Vector& offset);
   void bringPathForward(const ID<Model::Path>& id);
   void sendPathBackward(const ID<Model::Path>& id);
   void removeNode(const ID<Model::Node>& id);
@@ -32,7 +56,7 @@ public:
 private:
   friend class AddNodeCommand;
   friend class RemoveNodeCommand;
-  friend class MovePathCommand;
+  friend class MoveSelectionCommand;
 
   // Node::Accessor and ControlPoint::Accessor
   Model::ControlPoint* getControlPoint(const ID<Model::ControlPoint>& id) override;

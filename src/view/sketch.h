@@ -71,7 +71,7 @@ private:
   friend class SketchModeAdd;
   friend class SketchModeDelete;
   friend class SketchModePlace;
-  friend class SketchModePlacePath;
+  friend class SketchModePlaceSelection;
 
   void onPaint(wxPaintEvent& event);
   void drawTangents(cairo_t* context);

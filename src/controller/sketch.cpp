@@ -50,64 +50,57 @@ ControlPoint Sketch::controllerForControlPoint(const ID<Model::ControlPoint>& id
   return ControlPoint(mUndoManager, this, id);
 }
 
-class MovePathCommand : public UndoManager::AutoIDCommand<MovePathCommand>
+class MoveSelectionCommand : public UndoManager::AutoIDCommand<MoveSelectionCommand>
 {
 public:
-  MovePathCommand(Sketch* sketch, const ID<Model::Path>& id, const Vector& offset)
+  MoveSelectionCommand(Sketch* sketch, const Selection& selection, const Vector& offset)
     : mSketch(sketch)
-    , mID(id)
+    , mSelection(selection)
   {
-    Model::Path* path = mSketch->getPath(mID);
-
-    // node, precontrol, postcontrol
-    const int PointCount = path->entries().size() * 3;
+    const int PointCount = mSelection.mNodes.size() + mSelection.mControlPoints.size();
 
     mOrigins.reserve(PointCount);
     mDestinations.reserve(PointCount);
 
-    for (auto& entry : path->entries()) {
-      Model::Node* node = mSketch->getNode(entry.mNode);
-      Model::ControlPoint* preControl = mSketch->getControlPoint(entry.mPreControl);
-      Model::ControlPoint* postControl = mSketch->getControlPoint(entry.mPostControl);
-
+    for (auto& id : mSelection.mNodes) {
+      Model::Node* node = mSketch->getNode(id);
       mOrigins.push_back(node->position());
-      mOrigins.push_back(preControl->position());
-      mOrigins.push_back(postControl->position());
-
       mDestinations.push_back(node->position() + offset);
-      mDestinations.push_back(preControl->position() + offset);
-      mDestinations.push_back(postControl->position() + offset);
+    }
+
+    for (auto& id : mSelection.mControlPoints) {
+      Model::ControlPoint* point = mSketch->getControlPoint(id);
+      mOrigins.push_back(point->position());
+      mDestinations.push_back(point->position() + offset);
     }
   }
 
   void redo() override
   {
-    Model::Path* path = mSketch->getPath(mID);
-
     auto pointIterator = mDestinations.begin();
 
-    for (auto& entry : path->entries()) {
-      Node::position(mSketch->getNode(entry.mNode)) = *pointIterator;
+    for (auto& id : mSelection.mNodes) {
+      Node::position(mSketch->getNode(id)) = *pointIterator;
       ++pointIterator;
-      ControlPoint::position(mSketch->getControlPoint(entry.mPreControl)) = *pointIterator;
-      ++pointIterator;
-      ControlPoint::position(mSketch->getControlPoint(entry.mPostControl)) = *pointIterator;
+    }
+
+    for (auto& id : mSelection.mControlPoints) {
+      ControlPoint::position(mSketch->getControlPoint(id)) = *pointIterator;
       ++pointIterator;
     }
   }
 
   void undo() override
   {
-    Model::Path* path = mSketch->getPath(mID);
-
     auto pointIterator = mOrigins.begin();
 
-    for (auto& entry : path->entries()) {
-      Node::position(mSketch->getNode(entry.mNode)) = *pointIterator;
+    for (auto& id : mSelection.mNodes) {
+      Node::position(mSketch->getNode(id)) = *pointIterator;
       ++pointIterator;
-      ControlPoint::position(mSketch->getControlPoint(entry.mPreControl)) = *pointIterator;
-      ++pointIterator;
-      ControlPoint::position(mSketch->getControlPoint(entry.mPostControl)) = *pointIterator;
+    }
+
+    for (auto& id : mSelection.mControlPoints) {
+      ControlPoint::position(mSketch->getControlPoint(id)) = *pointIterator;
       ++pointIterator;
     }
   }
@@ -119,9 +112,9 @@ public:
 
   bool mergeWith(UndoCommand* other) override
   {
-    MovePathCommand* command = static_cast<MovePathCommand*>(other);
+    MoveSelectionCommand* command = static_cast<MoveSelectionCommand*>(other);
 
-    if (command->mSketch == mSketch && command->mID == mID) {
+    if (command->mSketch == mSketch && command->mSelection == mSelection) {
       mDestinations = std::move(command->mDestinations);
       return true;
     } else {
@@ -131,14 +124,14 @@ public:
 
 private:
   Sketch* mSketch;
-  ID<Model::Path> mID;
+  Selection mSelection;
   std::vector<Point> mOrigins;
   std::vector<Point> mDestinations;
 };
 
-void Sketch::movePath(const ID<Model::Path>& id, const Vector& offset)
+void Sketch::moveSelection(const Selection& selection, const Vector& offset)
 {
-  mUndoManager->pushCommand(new MovePathCommand(this, id, offset));
+  mUndoManager->pushCommand(new MoveSelectionCommand(this, selection, offset));
 }
 
 void Sketch::bringPathForward(const ID<Model::Path>& id)
