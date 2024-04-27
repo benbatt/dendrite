@@ -5,6 +5,7 @@
 #include "utilities/geometry.h"
 
 #include <cairo.h>
+#include <map>
 #include <set>
 #include <wx/mousemanager.h>
 #include <wx/wx.h>
@@ -31,6 +32,7 @@ public:
   {
     enum Type
     {
+      Path,
       Node,
       ControlPoint,
       Null,
@@ -51,16 +53,26 @@ public:
       , mID(id.value())
     {}
 
+    Handle(const ID<Model::Path>& id)
+      : mType(Path)
+      , mID(id.value())
+    {}
+
     template<class TModel>
     ID<TModel> id() const { return ID<TModel>(mID); }
 
+    bool isValid() const { return mID > 0; }
     bool refersTo(Type type) const { return mID > 0 && mType == type; }
     Model::ControlPoint* controlPoint(const Model::Sketch* sketch) const;
     Model::Node* node(const Model::Sketch* sketch) const;
 
-    operator bool() const { return mID > 0; }
+    bool isIn(const Controller::Selection& selection) const;
+    void addTo(Controller::Selection* selection, const Model::Sketch* sketch) const;
+    void removeFrom(Controller::Selection* selection, const Model::Sketch* sketch) const;
+
     bool operator==(const Handle& other) const { return mType == other.mType && mID == other.mID; }
     bool operator!=(const Handle& other) const { return !(*this == other); }
+    bool operator<(const Handle& other) const;
 
     Type mType;
     IDValue mID;
@@ -110,7 +122,11 @@ private:
     int MouseHitTest(const wxPoint& position) override;
 
   private:
+    int affirmIndex(const Handle& handle);
+
     Sketch* mSketch;
+    std::vector<Handle> mHandles;
+    std::map<Handle, int> mIndices;
   };
 
   class Mode
@@ -141,9 +157,10 @@ private:
   std::list<Mode*> mModeStack;
 
   Handle mHoverHandle;
-  std::set<ID<Model::Path>> mSelectedPaths;
+  Controller::Selection mSelection;
 
   bool mDragging;
+  bool mShowDetails;
   Rectangle mDragArea;
 };
 

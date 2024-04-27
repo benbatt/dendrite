@@ -34,6 +34,60 @@ Model::Node* Handle::node(const Model::Sketch* sketch) const
   return refersTo(Node) ? sketch->node(ID<Model::Node>(mID)) : nullptr;
 }
 
+bool Handle::isIn(const Controller::Selection& selection) const
+{
+  switch (mType) {
+    case Type::Path:
+      return selection.contains(id<Model::Path>());
+    case Type::Node:
+      return selection.contains(id<Model::Node>());
+    case Type::ControlPoint:
+      return selection.contains(id<Model::ControlPoint>());
+    case Type::Null:
+    default:
+      return false;
+  }
+}
+
+void Handle::addTo(Controller::Selection* selection, const Model::Sketch* sketch) const
+{
+  switch (mType) {
+    case Type::Path:
+      selection->add(id<Model::Path>(), sketch);
+      break;
+    case Type::Node:
+      selection->add(id<Model::Node>(), sketch);
+      break;
+    case Type::ControlPoint:
+      selection->add(id<Model::ControlPoint>());
+      break;
+    case Type::Null:
+      break;
+  }
+}
+
+void Handle::removeFrom(Controller::Selection* selection, const Model::Sketch* sketch) const
+{
+  switch (mType) {
+    case Type::Path:
+      selection->remove(id<Model::Path>(), sketch);
+      break;
+    case Type::Node:
+      selection->remove(id<Model::Node>(), sketch);
+      break;
+    case Type::ControlPoint:
+      selection->remove(id<Model::ControlPoint>());
+      break;
+    case Type::Null:
+      break;
+  }
+}
+
+bool Handle::operator<(const Handle& other) const
+{
+  return mType < other.mType || (mType == other.mType && mID < other.mID);
+}
+
 HandleStyle handleStyle(NodeType nodeType, Handle::Type handleType)
 {
   if (handleType == Handle::Node) {
@@ -192,7 +246,7 @@ public:
 
   bool onPointerMotion(Sketch& sketch, double x, double y) override
   {
-    if (mDragHandle) {
+    if (mDragHandle.isValid()) {
       setHandlePosition(sketch, mDragHandle, x, y);
     }
 
@@ -202,7 +256,7 @@ public:
   bool onKeyPressed(Sketch& sketch, wxKeyEvent& event) override
   {
     if (event.GetKeyCode() == WXK_CONTROL) {
-      if (mDragHandle) {
+      if (mDragHandle.isValid()) {
         ID<Model::Node> nodeID = sketch.nodeIDForHandle(mDragHandle);
 
         const Model::Node* node = sketch.mModel->node(nodeID);
@@ -233,7 +287,7 @@ public:
     } else if (event.GetKeyCode() == WXK_SHIFT) {
       mConstrainDirection = !mConstrainDirection;
 
-      if (mConstrainDirection && mDragHandle) {
+      if (mConstrainDirection && mDragHandle.isValid()) {
         Point position = sketch.handlePosition(mDragHandle);
         setHandlePosition(sketch, mDragHandle, position.x, position.y);
       }
@@ -292,9 +346,8 @@ public:
   SketchModePlaceSelection()
   { }
 
-  void prepare(const Controller::Selection& selection, double mouseX, double mouseY)
+  void prepare(double mouseX, double mouseY)
   {
-    mSelection = selection;
     mPreviousPosition = Point{mouseX, mouseY};
   }
 
@@ -318,7 +371,7 @@ public:
   {
     const Point position{x, y};
 
-    sketch.mController->moveSelection(mSelection, position - mPreviousPosition);
+    sketch.mController->moveSelection(sketch.mSelection, position - mPreviousPosition);
     mPreviousPosition = position;
 
     sketch.Refresh();
@@ -332,7 +385,6 @@ public:
 
 private:
   wxCursor mPreviousCursor;
-  Controller::Selection mSelection;
   Point mPreviousPosition;
 };
 
@@ -347,57 +399,32 @@ public:
     Remove,
   };
 
-  void begin(Sketch& sketch) override
-  {
-    mSelection.clear();
-
-    for (auto& id : sketch.mSelectedPaths) {
-      updateSelection(sketch.mModel->path(id), Add);
-    }
-  }
-
   void draw(Sketch& sketch, cairo_t* context, int width, int height) override
   {
     sketch.drawTangents(context);
 
     for (auto [id, node] : sketch.mModel->nodes()) {
       drawHandle(context, handleStyle(node->type(), Handle::Node), node->position(),
-        sketch.mHoverHandle == id, mSelection.mNodes.count(id) > 0);
+        sketch.mHoverHandle == id, sketch.mSelection.contains(id));
     }
 
     for (auto [id, point] : sketch.mModel->controlPoints()) {
       drawHandle(context, handleStyle(NodeType::Sharp, Handle::ControlPoint), point->position(),
-        sketch.mHoverHandle == id, mSelection.mControlPoints.count(id) > 0);
+        sketch.mHoverHandle == id, sketch.mSelection.contains(id));
     }
   }
 
   void onPointerPressed(Sketch& sketch, double x, double y) override
   {
-    if (sketch.mHoverHandle) {
+    if (sketch.mHoverHandle.isValid()) {
       sketch.mUndoManager->beginGroup();
 
-      if (mSelection.isEmpty()) {
+      if (sketch.mSelection.isEmpty()) {
         mPlaceMode.setDragHandle(sketch.mHoverHandle);
         sketch.pushMode(&mPlaceMode);
       } else {
-        mPlaceSelectionMode.prepare(mSelection, x, y);
+        mPlaceSelectionMode.prepare(x, y);
         sketch.pushMode(&mPlaceSelectionMode);
-      }
-    } else {
-      ID<Model::Path> id = findPath(sketch.mModel, x, y);
-
-      if (id.isValid()) {
-        const Model::Path* path = sketch.mModel->path(id);
-        bool replaceSelection = !wxGetKeyState(WXK_SHIFT);
-
-        if (replaceSelection) {
-          mSelection.clear();
-          updateSelection(path, Add);
-        } else {
-          updateSelection(path, areAllPointsSelected(path) ? Remove : Add);
-        }
-
-        sketch.Refresh();
       }
     }
   }
@@ -410,33 +437,6 @@ public:
   }
 
 private:
-  void updateSelection(const Model::Path* path, UpdateMode mode)
-  {
-    for (auto& entry : path->entries()) {
-      if (mode == Add) {
-        mSelection.mNodes.insert(entry.mNode);
-        mSelection.mControlPoints.insert(entry.mPreControl);
-        mSelection.mControlPoints.insert(entry.mPostControl);
-      } else {
-        mSelection.mNodes.erase(entry.mNode);
-        mSelection.mControlPoints.erase(entry.mPreControl);
-        mSelection.mControlPoints.erase(entry.mPostControl);
-      }
-    }
-  }
-
-  bool areAllPointsSelected(const Model::Path* path)
-  {
-    return std::all_of(path->entries().begin(), path->entries().end(),
-      [this](const Model::Path::Entry& entry)
-      {
-        return mSelection.mNodes.count(entry.mNode) > 0
-          && mSelection.mControlPoints.count(entry.mPreControl) > 0
-          && mSelection.mControlPoints.count(entry.mPostControl) > 0;
-      });
-  }
-
-  Controller::Selection mSelection;
   SketchModePlace mPlaceMode;
   SketchModePlaceSelection mPlaceSelectionMode;
 };
@@ -484,7 +484,7 @@ public:
 
   void onPointerPressed(Sketch& sketch, double x, double y) override
   {
-    if (sketch.mHoverHandle) {
+    if (sketch.mHoverHandle.isValid()) {
       addNode(sketch, sketch.mHoverHandle);
       sketch.mHoverHandle = Sketch::Handle();
     } else {
@@ -527,7 +527,7 @@ public:
       Handle attachHandle = sketch.findHandle(node->position().x, node->position().y, Handle::ControlPoint,
           node->controlPoints());
 
-      if (attachHandle) {
+      if (attachHandle.isValid()) {
         ID<Model::ControlPoint> attachID = attachHandle.id<Model::ControlPoint>();
 
         const Model::Path* attachPath;
@@ -702,6 +702,7 @@ Sketch::Sketch(wxWindow* parent, Model::Sketch* model, Controller::UndoManager *
   , mController(nullptr)
   , mUndoManager(undoManager)
   , mDragging(false)
+  , mShowDetails(false)
 {
   SetBackgroundStyle(wxBG_STYLE_PAINT);
 
@@ -775,7 +776,7 @@ void Sketch::onPaint(wxPaintEvent& event)
     const Model::Path* path = mModel->path(pathID);
 
     if (pathToCairo(context, path, mModel)) {
-      if (mSelectedPaths.count(pathID) > 0) {
+      if (mSelection.contains(pathID)) {
         Rectangle r;
         cairo_path_extents(context, &r.left, &r.top, &r.right, &r.bottom);
         extents.push_back(r);
@@ -795,6 +796,19 @@ void Sketch::onPaint(wxPaintEvent& event)
       }
 
       cairo_new_path(context);
+    }
+  }
+
+  if (mShowDetails && mModeStack.empty()) {
+    drawTangents(context);
+
+    for (auto [id, node] : mModel->nodes()) {
+      drawHandle(context, handleStyle(node->type(), Handle::Node), node->position(), false, mSelection.contains(id));
+    }
+
+    for (auto [id, point] : mModel->controlPoints()) {
+      drawHandle(context, handleStyle(NodeType::Sharp, Handle::ControlPoint), point->position(), false,
+        mSelection.contains(id));
     }
   }
 
@@ -1091,10 +1105,15 @@ void Sketch::onPointerMotion(wxMouseEvent& event)
 
 void Sketch::onKeyPressed(wxKeyEvent& event)
 {
-  for (auto it = mModeStack.begin(); it != mModeStack.end(); ++it) {
-    if ((*it)->onKeyPressed(*this, event)) {
-      return;
+  if (!mModeStack.empty()) {
+    for (auto it = mModeStack.begin(); it != mModeStack.end(); ++it) {
+      if ((*it)->onKeyPressed(*this, event)) {
+        return;
+      }
     }
+  } else if (event.GetKeyCode() == WXK_TAB) {
+    mShowDetails = !mShowDetails;
+    Refresh();
   }
 
   event.Skip();
@@ -1132,10 +1151,10 @@ void Sketch::activateViewMode()
 
 void Sketch::bringForward()
 {
-  if (!mSelectedPaths.empty()) {
+  if (!mSelection.mPaths.empty()) {
     mUndoManager->beginGroup();
 
-    for (auto id : mSelectedPaths) {
+    for (auto id : mSelection.mPaths) {
       mController->bringPathForward(id);
     }
 
@@ -1147,10 +1166,10 @@ void Sketch::bringForward()
 
 void Sketch::sendBackward()
 {
-  if (!mSelectedPaths.empty()) {
+  if (!mSelection.mPaths.empty()) {
     mUndoManager->beginGroup();
 
-    for (auto id : mSelectedPaths) {
+    for (auto id : mSelection.mPaths) {
       mController->sendPathBackward(id);
     }
 
@@ -1173,10 +1192,10 @@ void Sketch::onCancel()
 
 void Sketch::setStrokeColour(const wxColour& colour)
 {
-  if (!mSelectedPaths.empty()) {
+  if (!mSelection.mPaths.empty()) {
     mUndoManager->beginGroup();
 
-    for (auto id : mSelectedPaths) {
+    for (auto id : mSelection.mPaths) {
       mController->controllerForPath(id).setStrokeColour(Colour(colour.GetRGBA()));
     }
 
@@ -1188,10 +1207,10 @@ void Sketch::setStrokeColour(const wxColour& colour)
 
 void Sketch::setFillColour(const wxColour& colour)
 {
-  if (!mSelectedPaths.empty()) {
+  if (!mSelection.mPaths.empty()) {
     mUndoManager->beginGroup();
 
-    for (auto id : mSelectedPaths) {
+    for (auto id : mSelection.mPaths) {
       mController->controllerForPath(id).setFillColour(Colour(colour.GetRGBA()));
     }
 
@@ -1269,31 +1288,37 @@ void Sketch::setHandlePosition(const Handle& handle, const Point& position)
     case Handle::Type::ControlPoint:
       mController->controllerForControlPoint(handle.id<Model::ControlPoint>()).setPosition(position);
       break;
+    case Handle::Type::Path:
+    case Handle::Type::Null:
+      break;
   }
 }
 
 Sketch::MouseEventsManager::MouseEventsManager(Sketch* sketch)
   : wxMouseEventsManager(sketch)
   , mSketch(sketch)
+  , mHandles{ Handle() }
 {
 }
 
 bool Sketch::MouseEventsManager::MouseClicked(int item)
 {
   if (mSketch->mModeStack.empty()) {
+    Controller::Selection& selection = mSketch->mSelection;
+
     bool replaceSelection = !wxGetKeyState(WXK_SHIFT);
 
     if (replaceSelection) {
-      mSketch->mSelectedPaths.clear();
+      selection.clear();
     }
 
-    ID<Model::Path> id(item);
+    const Handle &handle = mHandles.at(item);
 
-    if (id.isValid()) {
-      if (replaceSelection || mSketch->mSelectedPaths.count(id) == 0) {
-        mSketch->mSelectedPaths.insert(id);
+    if (handle.isValid()) {
+      if (replaceSelection || !handle.isIn(selection)) {
+        handle.addTo(&selection, mSketch->mModel);
       } else {
-        mSketch->mSelectedPaths.erase(id);
+        handle.removeFrom(&selection, mSketch->mModel);
       }
     }
 
@@ -1326,24 +1351,51 @@ void Sketch::MouseEventsManager::MouseDragEnd(int item, const wxPoint& position)
 {
   mSketch->mDragging = false;
 
+  Controller::Selection& selection = mSketch->mSelection;
+
   bool add = wxGetKeyState(WXK_SHIFT);
   bool remove = wxGetKeyState(WXK_CONTROL);
 
   if (!add && !remove) {
     // Replace selection
-    mSketch->mSelectedPaths.clear();
+    selection.clear();
     add = true;
   }
 
-  forEachPathInDragArea(mSketch->mModel, mSketch->mDragArea,
-    [this, add](const ID<Model::Path>& id)
-    {
-      if (add) {
-        mSketch->mSelectedPaths.insert(id);
-      } else {
-        mSketch->mSelectedPaths.erase(id);
+  if (mSketch->mShowDetails) {
+    const Rectangle dragArea = mSketch->mDragArea.normalised();
+
+    for (auto [id, node] : mSketch->mModel->nodes()) {
+      if (dragArea.contains(node->position())) {
+        if (add) {
+          selection.add(id, mSketch->mModel);
+        } else {
+          selection.remove(id, mSketch->mModel);
+        }
       }
-    });
+    }
+
+    for (auto [id, point] : mSketch->mModel->controlPoints()) {
+      if (dragArea.contains(point->position())) {
+        if (add) {
+          selection.add(id);
+        } else {
+          selection.remove(id);
+        }
+      }
+    }
+  } else {
+    forEachPathInDragArea(mSketch->mModel, mSketch->mDragArea,
+      [this, add, &selection](const ID<Model::Path>& id)
+      {
+        if (add) {
+          selection.add(id, mSketch->mModel);
+        } else {
+          selection.remove(id, mSketch->mModel);
+        }
+      });
+  }
+
   mSketch->Refresh();
 }
 
@@ -1357,14 +1409,42 @@ void Sketch::MouseEventsManager::MouseDragging(int item, const wxPoint& position
 int Sketch::MouseEventsManager::MouseHitTest(const wxPoint& position)
 {
   if (mSketch->mModeStack.empty()) {
-    ID<Model::Path> pathID = findPath(mSketch->mModel, position.x, position.y);
+    if (mSketch->mShowDetails) {
+      Handle handle = mSketch->findHandle(position.x, position.y);
+
+      if (handle.isValid()) {
+        return affirmIndex(handle);
+      }
+    }
+
+    Handle handle = findPath(mSketch->mModel, position.x, position.y);
 
     mSketch->mDragArea.left = position.x;
     mSketch->mDragArea.top = position.y;
 
-    return pathID.value();
+    if (handle.isValid()) {
+      return affirmIndex(handle);
+    } else {
+      return 0;
+    }
   } else {
     return wxNOT_FOUND;
+  }
+}
+
+int Sketch::MouseEventsManager::affirmIndex(const Handle& handle)
+{
+  auto it = mIndices.find(handle);
+
+  if (it != mIndices.end()) {
+    return it->second;
+  } else {
+    size_t index = mHandles.size();
+
+    mIndices[handle] = index;
+    mHandles.push_back(handle);
+
+    return index;
   }
 }
 
