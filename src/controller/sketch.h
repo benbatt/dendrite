@@ -67,6 +67,7 @@ class Sketch : private ControlPoint::Accessor, private Node::Accessor, private P
 {
 public:
   Sketch(UndoManager* undoManager, Model::Sketch* model);
+  virtual ~Sketch() { }
 
   ID<Model::Path> addPath();
 
