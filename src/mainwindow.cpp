@@ -7,7 +7,7 @@
 #include <wx/clrpicker.h>
 
 MainWindow::MainWindow(Model::Sketch* model, Controller::UndoManager* undoManager, View::Context& viewContext)
-  : wxFrame(nullptr, wxID_ANY, "SplineDraw")
+  : wxFrame(nullptr, wxID_ANY, "Dendrite")
   , mUndoManager(undoManager)
 {
   wxBoxSizer* mainBox = new wxBoxSizer(wxHORIZONTAL);

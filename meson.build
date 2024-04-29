@@ -1,4 +1,4 @@
-project('spline_draw', 'cpp')
+project('dendrite', 'cpp')
 
 sources = [
   'src/main.cpp', 'src/mainwindow.cpp', 'src/controller/controlpoint.cpp', 'src/controller/node.cpp',
@@ -21,7 +21,7 @@ if build_machine.system() == 'windows'
     include_directories: wxwidgets.get_variable('rescomp').split()[2])
 endif
 
-executable('spline_draw',
+executable('dendrite',
   sources: sources,
   dependencies: [ cairo, sigcpp, wxwidgets ],
   include_directories: src)
