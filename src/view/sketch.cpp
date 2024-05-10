@@ -710,6 +710,7 @@ Sketch::Sketch(wxWindow* parent, Model::Sketch* model, Controller::UndoManager *
 
   context.addSignal().connect(sigc::mem_fun(*this, &Sketch::activateAddMode));
   context.deleteSignal().connect(sigc::mem_fun(*this, &Sketch::activateDeleteMode));
+  context.groupSignal().connect(sigc::mem_fun(*this, &Sketch::groupSelection));
   context.moveSignal().connect(sigc::mem_fun(*this, &Sketch::activateMoveMode));
   context.viewSignal().connect(sigc::mem_fun(*this, &Sketch::activateViewMode));
   context.cancelSignal().connect(sigc::mem_fun(*this, &Sketch::onCancel));
@@ -772,32 +773,7 @@ void Sketch::onPaint(wxPaintEvent& event)
 
   std::vector<Rectangle> extents;
 
-  for (auto pathID : mModel->drawOrder()) {
-    const Model::Path* path = mModel->path(pathID);
-
-    if (pathToCairo(context, path, mModel)) {
-      if (mSelection.contains(pathID)) {
-        Rectangle r;
-        cairo_path_extents(context, &r.left, &r.top, &r.right, &r.bottom);
-        extents.push_back(r);
-      }
-
-      {
-        const Colour& colour = path->strokeColour();
-        cairo_set_source_rgb(context, colour.red(), colour.green(), colour.blue());
-        cairo_set_line_width(context, 2);
-        cairo_stroke_preserve(context);
-      }
-
-      if (path->isFilled()) {
-        const Colour& colour = path->fillColour();
-        cairo_set_source_rgb(context, colour.red(), colour.green(), colour.blue());
-        cairo_fill(context);
-      }
-
-      cairo_new_path(context);
-    }
-  }
+  drawSketch(context, mModel, &extents);
 
   if (mShowDetails && mModeStack.empty()) {
     drawTangents(context);
@@ -874,6 +850,47 @@ void Sketch::onPaint(wxPaintEvent& event)
 
   wxPaintDC dc(this);
   dc.DrawBitmap(wxBitmap(image), 0, 0);
+}
+
+void Sketch::drawSketch(cairo_t* context, const Model::Sketch* sketch, std::vector<Rectangle>* extents) const
+{
+  for (auto [type, idValue] : sketch->drawOrder()) {
+    if (type == Model::Sketch::DrawEntry::Path) {
+      drawPath(context, ID<Model::Path>(idValue), sketch, extents);
+    } else if (type == Model::Sketch::DrawEntry::Sketch) {
+      const Model::Sketch* subSketch = sketch->sketch(ID<Model::Sketch>(idValue));
+      drawSketch(context, subSketch, extents);
+    }
+  }
+}
+
+void Sketch::drawPath(cairo_t* context, const ID<Model::Path>& id, const Model::Sketch* sketch,
+  std::vector<Rectangle>* extents) const
+{
+  const Model::Path* path = sketch->path(id);
+
+  if (pathToCairo(context, path, sketch)) {
+    if (mSelection.contains(id)) {
+      Rectangle r;
+      cairo_path_extents(context, &r.left, &r.top, &r.right, &r.bottom);
+      extents->push_back(r);
+    }
+
+    {
+      const Colour& colour = path->strokeColour();
+      cairo_set_source_rgb(context, colour.red(), colour.green(), colour.blue());
+      cairo_set_line_width(context, 2);
+      cairo_stroke_preserve(context);
+    }
+
+    if (path->isFilled()) {
+      const Colour& colour = path->fillColour();
+      cairo_set_source_rgb(context, colour.red(), colour.green(), colour.blue());
+      cairo_fill(context);
+    }
+
+    cairo_new_path(context);
+  }
 }
 
 void Sketch::drawTangents(cairo_t* context)
@@ -966,11 +983,13 @@ ID<Model::Path> findPath(Model::Sketch* sketch, double x, double y)
   ID<Model::Path> id;
 
   for (auto it = sketch->drawOrder().rbegin(); it != sketch->drawOrder().rend(); ++it) {
-    Model::Path* path = sketch->path(*it);
+    if (it->mType == Model::Sketch::DrawEntry::Path) {
+      Model::Path* path = sketch->path(ID<Model::Path>(it->mID));
 
-    if (pointInPath(context, sketch, path, x, y)) {
-      id = *it;
-      break;
+      if (pointInPath(context, sketch, path, x, y)) {
+        id = ID<Model::Path>(it->mID);
+        break;
+      }
     }
   }
 
@@ -1136,6 +1155,15 @@ void Sketch::activateDeleteMode()
 {
   cancelModeStack();
   pushMode(&SketchModeDelete::sInstance);
+}
+
+void Sketch::groupSelection()
+{
+  if (mModeStack.empty() && !mSelection.isEmpty()) {
+    mController->createSubSketch(mSelection);
+    mSelection.clear();
+    Refresh();
+  }
 }
 
 void Sketch::activateMoveMode()

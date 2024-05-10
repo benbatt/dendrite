@@ -17,6 +17,7 @@ class Context
 public:
   sigc::signal<void()> addSignal() { return mAddSignal; }
   sigc::signal<void()> deleteSignal() { return mDeleteSignal; }
+  sigc::signal<void()> groupSignal() { return mGroupSignal; }
   sigc::signal<void()> moveSignal() { return mMoveSignal; }
   sigc::signal<void()> cancelSignal() { return mCancelSignal; }
   sigc::signal<void()> viewSignal() { return mViewSignal; }
@@ -30,6 +31,7 @@ private:
 
   sigc::signal<void()> mAddSignal;
   sigc::signal<void()> mDeleteSignal;
+  sigc::signal<void()> mGroupSignal;
   sigc::signal<void()> mMoveSignal;
   sigc::signal<void()> mCancelSignal;
   sigc::signal<void()> mViewSignal;

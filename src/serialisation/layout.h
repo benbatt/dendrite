@@ -3,9 +3,9 @@
 namespace Model
 {
   class ControlPoint;
+  class Document;
   class Node;
   class Path;
-  class Sketch;
 }
 
 namespace Serialisation
@@ -15,7 +15,7 @@ class Layout
 {
 public:
   template <class TEndpoint>
-  static Model::Sketch* process(TEndpoint& endpoint, Model::Sketch* sketch);
+  static Model::Document* process(TEndpoint& endpoint, Model::Document* document);
 
 private:
   template <class TEndpoint>

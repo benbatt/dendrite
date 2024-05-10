@@ -20,13 +20,14 @@ namespace Model
 {
 
 class ControlPoint;
+class Document;
 class Node;
 class Path;
 
 class Sketch
 {
 public:
-  Sketch();
+  Sketch(Document* parent);
 
   template <class TModel>
   class Accessor
@@ -45,15 +46,46 @@ public:
     const std::unordered_map<ID<TModel>, TModel*>& mCollection;
   };
 
-  Accessor<Model::Node> nodes() const { return Accessor(mNodes); }
-  Accessor<Model::ControlPoint> controlPoints() const { return Accessor(mControlPoints); }
-  Accessor<Model::Path> paths() const { return Accessor(mPaths); }
+  Accessor<Node> nodes() const { return Accessor(mNodes); }
+  Accessor<ControlPoint> controlPoints() const { return Accessor(mControlPoints); }
+  Accessor<Path> paths() const { return Accessor(mPaths); }
+  Accessor<Sketch> sketches() const { return Accessor(mSketches); }
+
+  Document* parent() const { return mParent; }
 
   ControlPoint* controlPoint(const ID<ControlPoint>& id) const;
   Node* node(const ID<Node>& id) const;
   Path* path(const ID<Path>& id) const;
+  Sketch* sketch(const ID<Sketch>& id) const;
 
-  typedef std::vector<ID<Path>> DrawOrder;
+  struct DrawEntry
+  {
+    enum Type
+    {
+      Path,
+      Sketch,
+    };
+
+    DrawEntry()
+      : mType(Path)
+      , mID(0)
+    {}
+
+    DrawEntry(const ID<Model::Path>& id)
+      : mType(Path)
+      , mID(id.value())
+    {}
+
+    DrawEntry(const ID<Model::Sketch>& id)
+      : mType(Sketch)
+      , mID(id.value())
+    {}
+
+    Type mType;
+    IDValue mID;
+  };
+
+  typedef std::vector<DrawEntry> DrawOrder;
   const DrawOrder& drawOrder() const { return mDrawOrder; }
 
 private:
@@ -64,12 +96,14 @@ private:
   typedef std::unordered_map<ID<ControlPoint>, ControlPoint*> ControlPointList;
   typedef std::unordered_map<ID<Node>, Node*> NodeList;
   typedef std::unordered_map<ID<Path>, Path*> PathList;
+  typedef std::unordered_map<ID<Sketch>, Sketch*> SketchList;
 
   ControlPointList mControlPoints;
   NodeList mNodes;
   PathList mPaths;
+  SketchList mSketches;
   DrawOrder mDrawOrder;
-  IDValue mNextID;
+  Document* mParent;
 };
 
 }

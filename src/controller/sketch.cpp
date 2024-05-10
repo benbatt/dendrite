@@ -4,8 +4,10 @@
 #include "controller/node.h"
 #include "controller/undo.h"
 #include "model/controlpoint.h"
+#include "model/document.h"
 
 #include <cassert>
+#include <map>
 
 namespace Controller
 {
@@ -134,11 +136,40 @@ void Sketch::moveSelection(const Selection& selection, const Vector& offset)
   mUndoManager->pushCommand(new MoveSelectionCommand(this, selection, offset));
 }
 
+Model::Sketch::DrawOrder::iterator findDrawEntry(Model::Sketch::DrawOrder& drawOrder,
+  const ID<Model::Path>& id)
+{
+  return std::find_if(drawOrder.begin(), drawOrder.end(),
+    [&id](const Model::Sketch::DrawEntry& e)
+    {
+      return e.mType == Model::Sketch::DrawEntry::Path && e.mID == id.value();
+    });
+}
+
+Model::Sketch::DrawOrder::const_iterator findDrawEntry(const Model::Sketch::DrawOrder& drawOrder,
+  const ID<Model::Path>& id)
+{
+  return std::find_if(drawOrder.begin(), drawOrder.end(),
+    [&id](const Model::Sketch::DrawEntry& e)
+    {
+      return e.mType == Model::Sketch::DrawEntry::Path && e.mID == id.value();
+    });
+}
+
+Model::Sketch::DrawOrder::iterator findDrawEntry(Model::Sketch::DrawOrder& drawOrder,
+  const ID<Model::Sketch>& id)
+{
+  return std::find_if(drawOrder.begin(), drawOrder.end(),
+    [&id](const Model::Sketch::DrawEntry& e)
+    {
+      return e.mType == Model::Sketch::DrawEntry::Sketch && e.mID == id.value();
+    });
+}
+
 void Sketch::bringPathForward(const ID<Model::Path>& id)
 {
   Model::Sketch::DrawOrder& drawOrder = mModel->mDrawOrder;
-  auto it = std::find(drawOrder.begin(), drawOrder.end(), id);
-
+  auto it = findDrawEntry(drawOrder, id);
   assert(it != drawOrder.end());
 
   int index = std::distance(drawOrder.begin(), it);
@@ -156,7 +187,7 @@ void Sketch::bringPathForward(const ID<Model::Path>& id)
 void Sketch::sendPathBackward(const ID<Model::Path>& id)
 {
   Model::Sketch::DrawOrder& drawOrder = mModel->mDrawOrder;
-  auto it = std::find(drawOrder.begin(), drawOrder.end(), id);
+  auto it = findDrawEntry(drawOrder, id);
 
   assert(it != drawOrder.end());
 
@@ -215,6 +246,117 @@ void Sketch::removeNode(const ID<Model::Node>& nodeID)
   mUndoManager->endGroup();
 }
 
+class CreateSubSketchCommand : public UndoCommand
+{
+public:
+  CreateSubSketchCommand(Sketch* sketch, const Selection& selection)
+    : mSketch(sketch)
+    , mSelection(selection)
+    , mID(sketch->nextID())
+  {
+    const Model::Sketch::DrawOrder& drawOrder = mSketch->mModel->drawOrder();
+
+    for (auto& id : mSelection.mPaths) {
+      auto it = findDrawEntry(drawOrder, id);
+      int index = std::distance(drawOrder.begin(), it);
+      mOldDrawOrder[index] = id;
+    }
+  }
+
+  void redo() override
+  {
+    Model::Sketch* subSketch = new Model::Sketch(mSketch->mModel->parent());
+    Sketch::sketches(mSketch->mModel)[mID] = subSketch;
+
+    Model::Sketch::DrawOrder& drawOrder = Sketch::drawOrder(mSketch->mModel);
+    int drawIndex = !mOldDrawOrder.empty() ? (mOldDrawOrder.rbegin()->first + 1) : drawOrder.size();
+    drawOrder.insert(drawOrder.begin() + drawIndex, mID);
+
+    auto addControlPoint = [this, subSketch](const ID<Model::ControlPoint>& id)
+    {
+      if (Sketch::controlPoints(subSketch).count(id) == 0) {
+        Model::ControlPoint* controlPoint = mSketch->getControlPoint(id);
+        Sketch::controlPoints(subSketch)[id] = controlPoint;
+      }
+    };
+
+    auto addNode = [this, subSketch, &addControlPoint](const ID<Model::Node>& id)
+    {
+      if (Sketch::nodes(subSketch).count(id) == 0) {
+        Model::Node* node = mSketch->getNode(id);
+        Sketch::nodes(subSketch)[id] = node;
+
+        for (auto controlPointID : node->controlPoints()) {
+          addControlPoint(controlPointID);
+        }
+      }
+    };
+
+    auto movePath = [this, subSketch, &addNode](const ID<Model::Path>& id)
+    {
+      Model::Path* path = mSketch->mModel->path(id);
+
+      Sketch::paths(subSketch)[id] = path;
+      Sketch::paths(mSketch->mModel).erase(id);
+
+      Sketch::drawOrder(subSketch).push_back(id);
+      Model::Sketch::DrawOrder& drawOrder = Sketch::drawOrder(mSketch->mModel);
+      drawOrder.erase(findDrawEntry(drawOrder, id));
+
+      for (auto entry: path->entries()) {
+        addNode(entry.mNode);
+      }
+    };
+
+    for (auto& [index, id] : mOldDrawOrder) {
+      movePath(id);
+    }
+
+    for (auto& id : mSelection.mNodes) {
+      addNode(id);
+    }
+
+    for (auto& id : mSelection.mControlPoints) {
+      addControlPoint(id);
+    }
+  }
+
+  void undo() override
+  {
+    Model::Sketch* subSketch = mSketch->mModel->sketch(mID);
+
+    Model::Sketch::DrawOrder& drawOrder = Sketch::drawOrder(mSketch->mModel);
+    drawOrder.erase(findDrawEntry(drawOrder, mID));
+
+    for (auto& id : mSelection.mPaths) {
+      Sketch::paths(mSketch->mModel)[id] = subSketch->path(id);
+    }
+
+    for (auto [index, id] : mOldDrawOrder) {
+      drawOrder.insert(drawOrder.begin() + index, id);
+    }
+
+    delete subSketch;
+    Sketch::sketches(mSketch->mModel).erase(mID);
+  }
+
+  std::string description() override
+  {
+    return "Create sub-sketch";
+  }
+
+private:
+  Sketch* mSketch;
+  Selection mSelection;
+  std::map<int, ID<Model::Path>> mOldDrawOrder;
+  ID<Model::Sketch> mID;
+};
+
+void Sketch::createSubSketch(const Selection& selection)
+{
+  mUndoManager->pushCommand(new CreateSubSketchCommand(this, selection));
+}
+
 Model::Node* Sketch::getNode(const ID<Model::Node>& id)
 {
   return mModel->node(id);
@@ -227,8 +369,8 @@ Model::ControlPoint* Sketch::getControlPoint(const ID<Model::ControlPoint>& id)
 
 IDValue Sketch::nextID()
 {
-  IDValue value = mModel->mNextID;
-  ++mModel->mNextID;
+  IDValue value = mModel->mParent->mNextID;
+  ++mModel->mParent->mNextID;
 
   return value;
 }
@@ -268,9 +410,29 @@ Model::Path* Sketch::getPath(const ID<Model::Path>& id)
   return mModel->path(id);
 }
 
+Model::Sketch::ControlPointList& Sketch::controlPoints(Model::Sketch* sketch)
+{
+  return sketch->mControlPoints;
+}
+
+Model::Sketch::DrawOrder& Sketch::drawOrder(Model::Sketch* sketch)
+{
+  return sketch->mDrawOrder;
+}
+
 Model::Sketch::NodeList& Sketch::nodes(Model::Sketch* sketch)
 {
   return sketch->mNodes;
+}
+
+Model::Sketch::PathList& Sketch::paths(Model::Sketch* sketch)
+{
+  return sketch->mPaths;
+}
+
+Model::Sketch::SketchList& Sketch::sketches(Model::Sketch* sketch)
+{
+  return sketch->mSketches;
 }
 
 }

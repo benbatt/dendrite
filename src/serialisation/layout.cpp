@@ -1,6 +1,7 @@
 #include "serialisation/layout.h"
 
 #include "model/controlpoint.h"
+#include "model/document.h"
 #include "model/node.h"
 #include "model/path.h"
 #include "model/sketch.h"
@@ -157,13 +158,16 @@ namespace Version
 static const unsigned int Initial = 1;
 static const unsigned int PathChunks = 2;
 static const unsigned int DrawOrder = 3;
-static const unsigned int Current = 3;
+static const unsigned int SubSketches = 4;
+static const unsigned int Current = 4;
 
 }
 
 template <class TEndpoint>
-Model::Sketch* Layout::process(TEndpoint& endpoint, Model::Sketch* sketch)
+Model::Document* Layout::process(TEndpoint& endpoint, Model::Document* document)
 {
+  Model::Sketch* sketch = document ? document->sketch() : nullptr;
+
   auto riffChunk = beginListChunk(endpoint, "RIFF", "SPLN");
 
   // Format info
@@ -206,13 +210,45 @@ Model::Sketch* Layout::process(TEndpoint& endpoint, Model::Sketch* sketch)
   }
 
   // Draw order
-  if (endpoint.version() >= Version::DrawOrder) {
+  if (endpoint.version() >= Version::SubSketches) {
     auto drawOrderChunk = beginChunk(endpoint, "ORDR");
 
     fixedElements(endpoint, &sketch->mDrawOrder,
+      [](TEndpoint& endpoint, Model::Sketch::DrawEntry* entry) {
+        endpoint.asUint32(&entry->mType);
+
+        if (entry->mType == Model::Sketch::DrawEntry::Path) {
+          ID<Model::Path> id(entry->mID);
+          endpoint.id(&id);
+          entry->mID = id.value();
+        } else if (entry->mType == Model::Sketch::DrawEntry::Sketch) {
+          ID<Model::Sketch> id(entry->mID);
+          endpoint.id(&id);
+          entry->mID = id.value();
+        }
+      });
+
+    endpoint.endChunk(drawOrderChunk);
+  } else if (endpoint.version() >= Version::DrawOrder) {
+    auto drawOrderChunk = beginChunk(endpoint, "ORDR");
+
+    std::vector<ID<Model::Path>> drawOrder;
+
+    for (auto& [type, id] : sketch->drawOrder()) {
+      if (type == Model::Sketch::DrawEntry::Path) {
+        drawOrder.push_back(ID<Model::Path>(id));
+      }
+    }
+
+    fixedElements(endpoint, &drawOrder,
       [](TEndpoint& endpoint, ID<Model::Path>* id) {
         endpoint.id(id);
       });
+
+    // this is an old version, so we must be reading
+    for (auto& id : drawOrder) {
+      sketch->mDrawOrder.push_back(id);
+    }
 
     endpoint.endChunk(drawOrderChunk);
   }
@@ -223,7 +259,7 @@ Model::Sketch* Layout::process(TEndpoint& endpoint, Model::Sketch* sketch)
 
   endpoint.endChunk(riffChunk);
 
-  return sketch;
+  return sketch->mParent;
 }
 
 template <class TEndpoint>
@@ -277,7 +313,7 @@ void Layout::processPathElement(TEndpoint& endpoint, Model::Path* path)
     });
 }
 
-template Model::Sketch* Layout::process(Writer& endpoint, Model::Sketch* sketch);
-template Model::Sketch* Layout::process(Reader& endpoint, Model::Sketch* sketch);
+template Model::Document* Layout::process(Writer& endpoint, Model::Document* document);
+template Model::Document* Layout::process(Reader& endpoint, Model::Document* document);
 
 }

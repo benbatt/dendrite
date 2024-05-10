@@ -1,7 +1,7 @@
 #include "mainwindow.h"
 #include "controller/sketch.h"
 #include "controller/undo.h"
-#include "model/sketch.h"
+#include "model/document.h"
 #include "serialisation/layout.h"
 #include "serialisation/reader.h"
 #include "serialisation/writer.h"
@@ -25,6 +25,7 @@ private:
     Redo,
     Add,
     Delete,
+    Group,
     Move,
     Cancel,
     View,
@@ -40,7 +41,7 @@ private:
   Controller::UndoManager mUndoManager;
   View::Context mViewContext;
   wxMenuBar* mMenuBar;
-  Model::Sketch* mModel;
+  Model::Document* mDocument;
   MainWindow* mMainWindow;
 };
 
@@ -53,6 +54,7 @@ bool Application::OnInit()
 
   Bind(wxEVT_MENU, [this](wxCommandEvent&) { mViewContext.mAddSignal.emit(); }, ID::Add);
   Bind(wxEVT_MENU, [this](wxCommandEvent&) { mViewContext.mDeleteSignal.emit(); }, ID::Delete);
+  Bind(wxEVT_MENU, [this](wxCommandEvent&) { mViewContext.mGroupSignal.emit(); }, ID::Group);
   Bind(wxEVT_MENU, [this](wxCommandEvent&) { mViewContext.mMoveSignal.emit(); }, ID::Move);
   Bind(wxEVT_MENU, [this](wxCommandEvent&) { mViewContext.mCancelSignal.emit(); }, ID::Cancel);
   Bind(wxEVT_MENU, [this](wxCommandEvent&) { mViewContext.mViewSignal.emit(); }, ID::View);
@@ -77,6 +79,7 @@ bool Application::OnInit()
 
   editMenu->Append(ID::Add, "&Add\tA");
   editMenu->Append(ID::Delete, "&Delete\tD");
+  editMenu->Append(ID::Group, "&Group\tG");
   editMenu->Append(ID::Move, "&Move\tM");
   editMenu->Append(ID::Cancel, "&Cancel\tEscape");
   editMenu->Append(ID::View, "&View\tSpace");
@@ -86,9 +89,9 @@ bool Application::OnInit()
   editMenu->Append(ID::BringForward, "Bring &Forward\tPageUp");
   editMenu->Append(ID::SendBackward, "Send &Backward\tPageDown");
 
-  mModel = new Model::Sketch;
+  mDocument = new Model::Document;
 
-  mMainWindow = new MainWindow(mModel, &mUndoManager, mViewContext);
+  mMainWindow = new MainWindow(mDocument->sketch(), &mUndoManager, mViewContext);
   mMainWindow->SetMenuBar(mMenuBar);
   mMainWindow->Maximize(true);
   mMainWindow->Show();
@@ -118,7 +121,7 @@ void Application::onSave(wxCommandEvent& event)
   std::ofstream stream(dialog.GetPath(), std::ios_base::binary);
 
   Serialisation::Writer writer(stream);
-  Serialisation::Layout::process(writer, mModel);
+  Serialisation::Layout::process(writer, mDocument);
 }
 
 void Application::onOpen(wxCommandEvent& event)
@@ -133,14 +136,14 @@ void Application::onOpen(wxCommandEvent& event)
   std::ifstream stream(dialog.GetPath(), std::ios_base::binary);
 
   Serialisation::Reader reader(stream);
-  Model::Sketch* newModel = Serialisation::Layout::process(reader, nullptr);
+  Model::Document* newDocument = Serialisation::Layout::process(reader, nullptr);
 
   mUndoManager.clear();
 
-  delete mModel;
-  mModel = newModel;
+  delete mDocument;
+  mDocument = newDocument;
 
-  mViewContext.mModelChangedSignal.emit(mModel);
+  mViewContext.mModelChangedSignal.emit(mDocument->sketch());
 }
 
 wxIMPLEMENT_APP(Application);

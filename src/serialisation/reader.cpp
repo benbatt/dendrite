@@ -2,6 +2,7 @@
 
 #include "model/node.h"
 #include "model/controlpoint.h"
+#include "model/document.h"
 #include "model/sketch.h"
 #include "utilities/geometry.h"
 #include "utilities/id.h"
@@ -39,12 +40,19 @@ void Reader::endChunk(const Element& element)
 
 void Reader::beginObject(Model::Sketch** sketch)
 {
-  *sketch = new Model::Sketch;
+  Model::Document* document = new Model::Document;
+  *sketch = document->mSketch;
 }
 
 void Reader::endObject(Model::Sketch* sketch)
 {
-  sketch->mNextID = std::max(sketch->mNodes.size(), sketch->mControlPoints.size()) + 1;
+  size_t maxID = 0;
+  maxID = std::max(maxID, sketch->mControlPoints.size());
+  maxID = std::max(maxID, sketch->mNodes.size());
+  maxID = std::max(maxID, sketch->mPaths.size());
+  maxID = std::max(maxID, sketch->mSketches.size());
+
+  sketch->mParent->mNextID = maxID + 1;
 
   if (sketch->mDrawOrder.empty()) {
     sketch->mDrawOrder.reserve(sketch->mPaths.size());

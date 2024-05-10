@@ -30,11 +30,13 @@ public:
   void bringPathForward(const ID<Model::Path>& id);
   void sendPathBackward(const ID<Model::Path>& id);
   void removeNode(const ID<Model::Node>& id);
+  void createSubSketch(const Selection& selection);
 
 private:
   friend class AddNodeCommand;
   friend class RemoveNodeCommand;
   friend class MoveSelectionCommand;
+  friend class CreateSubSketchCommand;
 
   // Node::Accessor and ControlPoint::Accessor
   Model::ControlPoint* getControlPoint(const ID<Model::ControlPoint>& id) override;
@@ -49,7 +51,11 @@ private:
   void destroyControlPoint(const ID<Model::ControlPoint>& id) override;
   Model::Path* getPath(const ID<Model::Path>& id) override;
 
+  static Model::Sketch::ControlPointList& controlPoints(Model::Sketch* sketch);
+  static Model::Sketch::DrawOrder& drawOrder(Model::Sketch* sketch);
   static Model::Sketch::NodeList& nodes(Model::Sketch* sketch);
+  static Model::Sketch::PathList& paths(Model::Sketch* sketch);
+  static Model::Sketch::SketchList& sketches(Model::Sketch* sketch);
 
   UndoManager* mUndoManager;
   Model::Sketch* mModel;
