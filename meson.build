@@ -3,8 +3,8 @@ project('dendrite', 'cpp')
 sources = [
   'src/main.cpp', 'src/mainwindow.cpp', 'src/controller/controlpoint.cpp', 'src/controller/node.cpp',
   'src/controller/path.cpp', 'src/controller/selection.cpp', 'src/controller/sketch.cpp', 'src/controller/undo.cpp',
-  'src/model/document.cpp', 'src/model/sketch.cpp', 'src/serialisation/layout.cpp', 'src/serialisation/reader.cpp',
-  'src/serialisation/writer.cpp', 'src/utilities/geometry.cpp', 'src/view/sketch.cpp',
+  'src/model/document.cpp', 'src/model/reference.cpp', 'src/model/sketch.cpp', 'src/serialisation/layout.cpp',
+  'src/serialisation/reader.cpp', 'src/serialisation/writer.cpp', 'src/utilities/geometry.cpp', 'src/view/sketch.cpp',
 ]
 
 cairo = dependency('cairo', version: '>= 1.18.0')

@@ -139,31 +139,19 @@ void Sketch::moveSelection(const Selection& selection, const Vector& offset)
 Model::Sketch::DrawOrder::iterator findDrawEntry(Model::Sketch::DrawOrder& drawOrder,
   const ID<Model::Path>& id)
 {
-  return std::find_if(drawOrder.begin(), drawOrder.end(),
-    [&id](const Model::Sketch::DrawEntry& e)
-    {
-      return e.mType == Model::Sketch::DrawEntry::Path && e.mID == id.value();
-    });
+  return std::find(drawOrder.begin(), drawOrder.end(), id);
 }
 
 Model::Sketch::DrawOrder::const_iterator findDrawEntry(const Model::Sketch::DrawOrder& drawOrder,
   const ID<Model::Path>& id)
 {
-  return std::find_if(drawOrder.begin(), drawOrder.end(),
-    [&id](const Model::Sketch::DrawEntry& e)
-    {
-      return e.mType == Model::Sketch::DrawEntry::Path && e.mID == id.value();
-    });
+  return std::find(drawOrder.begin(), drawOrder.end(), id);
 }
 
 Model::Sketch::DrawOrder::iterator findDrawEntry(Model::Sketch::DrawOrder& drawOrder,
   const ID<Model::Sketch>& id)
 {
-  return std::find_if(drawOrder.begin(), drawOrder.end(),
-    [&id](const Model::Sketch::DrawEntry& e)
-    {
-      return e.mType == Model::Sketch::DrawEntry::Sketch && e.mID == id.value();
-    });
+  return std::find(drawOrder.begin(), drawOrder.end(), id);
 }
 
 void Sketch::bringPathForward(const ID<Model::Path>& id)

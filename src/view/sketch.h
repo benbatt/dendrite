@@ -1,6 +1,7 @@
 #pragma once
 
 #include "controller/sketch.h"
+#include "model/reference.h"
 #include "model/sketch.h"
 #include "utilities/geometry.h"
 
@@ -28,55 +29,7 @@ public:
   void setStrokeColour(const wxColour& colour);
   void setFillColour(const wxColour& colour);
 
-  struct Handle
-  {
-    enum Type
-    {
-      Path,
-      Node,
-      ControlPoint,
-      Null,
-    };
-
-    Handle()
-      : mType(Null)
-      , mID(0)
-    {}
-
-    Handle(const ID<Model::ControlPoint>& id)
-      : mType(ControlPoint)
-      , mID(id.value())
-    {}
-
-    Handle(const ID<Model::Node>& id)
-      : mType(Node)
-      , mID(id.value())
-    {}
-
-    Handle(const ID<Model::Path>& id)
-      : mType(Path)
-      , mID(id.value())
-    {}
-
-    template<class TModel>
-    ID<TModel> id() const { return ID<TModel>(mID); }
-
-    bool isValid() const { return mID > 0; }
-    bool refersTo(Type type) const { return mID > 0 && mType == type; }
-    Model::ControlPoint* controlPoint(const Model::Sketch* sketch) const;
-    Model::Node* node(const Model::Sketch* sketch) const;
-
-    bool isIn(const Controller::Selection& selection) const;
-    void addTo(Controller::Selection* selection, const Model::Sketch* sketch) const;
-    void removeFrom(Controller::Selection* selection, const Model::Sketch* sketch) const;
-
-    bool operator==(const Handle& other) const { return mType == other.mType && mID == other.mID; }
-    bool operator!=(const Handle& other) const { return !(*this == other); }
-    bool operator<(const Handle& other) const;
-
-    Type mType;
-    IDValue mID;
-  };
+  using Handle = Model::Reference;
 
 private:
   friend class SketchModeMove;

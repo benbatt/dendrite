@@ -10,6 +10,7 @@ namespace Model
 class ControlPoint;
 class Node;
 class Path;
+class Reference;
 class Sketch;
 
 }
@@ -25,6 +26,10 @@ struct Selection
     mNodes.clear();
     mControlPoints.clear();
   }
+
+  bool contains(const Model::Reference& reference) const;
+  void add(const Model::Reference& reference, const Model::Sketch* sketch);
+  void remove(const Model::Reference& reference, const Model::Sketch* sketch);
 
   bool contains(const ID<Model::Path>& id) const
   {

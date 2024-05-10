@@ -1,5 +1,6 @@
 #pragma once
 
+#include "model/reference.h"
 #include "utilities/id.h"
 
 #include <unordered_map>
@@ -58,34 +59,7 @@ public:
   Path* path(const ID<Path>& id) const;
   Sketch* sketch(const ID<Sketch>& id) const;
 
-  struct DrawEntry
-  {
-    enum Type
-    {
-      Path,
-      Sketch,
-    };
-
-    DrawEntry()
-      : mType(Path)
-      , mID(0)
-    {}
-
-    DrawEntry(const ID<Model::Path>& id)
-      : mType(Path)
-      , mID(id.value())
-    {}
-
-    DrawEntry(const ID<Model::Sketch>& id)
-      : mType(Sketch)
-      , mID(id.value())
-    {}
-
-    Type mType;
-    IDValue mID;
-  };
-
-  typedef std::vector<DrawEntry> DrawOrder;
+  typedef std::vector<Reference> DrawOrder;
   const DrawOrder& drawOrder() const { return mDrawOrder; }
 
 private:

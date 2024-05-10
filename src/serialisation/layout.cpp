@@ -214,17 +214,17 @@ Model::Document* Layout::process(TEndpoint& endpoint, Model::Document* document)
     auto drawOrderChunk = beginChunk(endpoint, "ORDR");
 
     fixedElements(endpoint, &sketch->mDrawOrder,
-      [](TEndpoint& endpoint, Model::Sketch::DrawEntry* entry) {
-        endpoint.asUint32(&entry->mType);
+      [](TEndpoint& endpoint, Model::Reference* reference) {
+        endpoint.asUint32(&reference->mType);
 
-        if (entry->mType == Model::Sketch::DrawEntry::Path) {
-          ID<Model::Path> id(entry->mID);
+        if (reference->mType == Model::Reference::Type::Path) {
+          ID<Model::Path> id(reference->mID);
           endpoint.id(&id);
-          entry->mID = id.value();
-        } else if (entry->mType == Model::Sketch::DrawEntry::Sketch) {
-          ID<Model::Sketch> id(entry->mID);
+          reference->mID = id.value();
+        } else if (reference->mType == Model::Reference::Type::Sketch) {
+          ID<Model::Sketch> id(reference->mID);
           endpoint.id(&id);
-          entry->mID = id.value();
+          reference->mID = id.value();
         }
       });
 
@@ -235,7 +235,7 @@ Model::Document* Layout::process(TEndpoint& endpoint, Model::Document* document)
     std::vector<ID<Model::Path>> drawOrder;
 
     for (auto& [type, id] : sketch->drawOrder()) {
-      if (type == Model::Sketch::DrawEntry::Path) {
+      if (type == Model::Reference::Type::Path) {
         drawOrder.push_back(ID<Model::Path>(id));
       }
     }

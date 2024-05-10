@@ -2,10 +2,62 @@
 
 #include "model/node.h"
 #include "model/path.h"
+#include "model/reference.h"
 #include "model/sketch.h"
 
 namespace Controller
 {
+
+using Reference = Model::Reference;
+
+bool Selection::contains(const Reference& reference) const
+{
+  switch (reference.type()) {
+    case Reference::Type::Path:
+      return contains(reference.id<Model::Path>());
+    case Reference::Type::Node:
+      return contains(reference.id<Model::Node>());
+    case Reference::Type::ControlPoint:
+      return contains(reference.id<Model::ControlPoint>());
+    case Reference::Type::Null:
+    default:
+      return false;
+  }
+}
+
+void Selection::add(const Reference& reference, const Model::Sketch* sketch)
+{
+  switch (reference.type()) {
+    case Reference::Type::Path:
+      add(reference.id<Model::Path>(), sketch);
+      break;
+    case Reference::Type::Node:
+      add(reference.id<Model::Node>(), sketch);
+      break;
+    case Reference::Type::ControlPoint:
+      add(reference.id<Model::ControlPoint>());
+      break;
+    case Reference::Type::Null:
+      break;
+  }
+}
+
+void Selection::remove(const Reference& reference, const Model::Sketch* sketch)
+{
+  switch (reference.type()) {
+    case Reference::Type::Path:
+      remove(reference.id<Model::Path>(), sketch);
+      break;
+    case Reference::Type::Node:
+      remove(reference.id<Model::Node>(), sketch);
+      break;
+    case Reference::Type::ControlPoint:
+      remove(reference.id<Model::ControlPoint>());
+      break;
+    case Reference::Type::Null:
+      break;
+  }
+}
 
 void Selection::add(const ID<Model::Path>& id, const Model::Sketch* sketch)
 {
