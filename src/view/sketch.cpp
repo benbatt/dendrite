@@ -1115,12 +1115,10 @@ void Sketch::activateViewMode()
 
 void Sketch::bringForward()
 {
-  if (!mSelection.mPaths.empty()) {
+  if (mSelection.contains(Model::Reference::Type::Path)) {
     mUndoManager->beginGroup();
 
-    for (auto id : mSelection.mPaths) {
-      mController->bringPathForward(id);
-    }
+    mSelection.forEachPathID([this](const ID<Model::Path>& id) { mController->bringPathForward(id); });
 
     mUndoManager->endGroup();
 
@@ -1130,12 +1128,10 @@ void Sketch::bringForward()
 
 void Sketch::sendBackward()
 {
-  if (!mSelection.mPaths.empty()) {
+  if (mSelection.contains(Model::Reference::Type::Path)) {
     mUndoManager->beginGroup();
 
-    for (auto id : mSelection.mPaths) {
-      mController->sendPathBackward(id);
-    }
+    mSelection.forEachPathID([this](const ID<Model::Path>& id) { mController->sendPathBackward(id); });
 
     mUndoManager->endGroup();
 
@@ -1156,12 +1152,14 @@ void Sketch::onCancel()
 
 void Sketch::setStrokeColour(const wxColour& colour)
 {
-  if (!mSelection.mPaths.empty()) {
+  if (mSelection.contains(Model::Reference::Type::Path)) {
     mUndoManager->beginGroup();
 
-    for (auto id : mSelection.mPaths) {
-      mController->controllerForPath(id).setStrokeColour(Colour(colour.GetRGBA()));
-    }
+    mSelection.forEachPathID(
+      [this, &colour](const ID<Model::Path>& id)
+      {
+        mController->controllerForPath(id).setStrokeColour(Colour(colour.GetRGBA()));
+      });
 
     mUndoManager->endGroup();
 
@@ -1171,12 +1169,14 @@ void Sketch::setStrokeColour(const wxColour& colour)
 
 void Sketch::setFillColour(const wxColour& colour)
 {
-  if (!mSelection.mPaths.empty()) {
+  if (mSelection.contains(Model::Reference::Type::Path)) {
     mUndoManager->beginGroup();
 
-    for (auto id : mSelection.mPaths) {
-      mController->controllerForPath(id).setFillColour(Colour(colour.GetRGBA()));
-    }
+    mSelection.forEachPathID(
+      [this, &colour](const ID<Model::Path>& id)
+      {
+        mController->controllerForPath(id).setFillColour(Colour(colour.GetRGBA()));
+      });
 
     mUndoManager->endGroup();
 
@@ -1342,9 +1342,9 @@ void Sketch::MouseEventsManager::MouseDragEnd(int item, const wxPoint& position)
     for (auto [id, point] : mSketch->mModel->controlPoints()) {
       if (dragArea.contains(point->position())) {
         if (add) {
-          selection.add(id);
+          selection.add(id, mSketch->mModel);
         } else {
-          selection.remove(id);
+          selection.remove(id, mSketch->mModel);
         }
       }
     }

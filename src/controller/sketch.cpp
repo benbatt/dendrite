@@ -59,52 +59,63 @@ public:
     : mSketch(sketch)
     , mSelection(selection)
   {
-    const int PointCount = mSelection.mNodes.size() + mSelection.mControlPoints.size();
+    const int PointCount = mSelection.count(Model::Reference::Type::Node)
+      + mSelection.count(Model::Reference::Type::ControlPoint);
 
     mOrigins.reserve(PointCount);
     mDestinations.reserve(PointCount);
 
-    for (auto& id : mSelection.mNodes) {
-      Model::Node* node = mSketch->getNode(id);
-      mOrigins.push_back(node->position());
-      mDestinations.push_back(node->position() + offset);
-    }
+    mSelection.forEachNode(mSketch->mModel,
+      [this, &offset](Model::Node* node)
+      {
+        mOrigins.push_back(node->position());
+        mDestinations.push_back(node->position() + offset);
+      });
 
-    for (auto& id : mSelection.mControlPoints) {
-      Model::ControlPoint* point = mSketch->getControlPoint(id);
-      mOrigins.push_back(point->position());
-      mDestinations.push_back(point->position() + offset);
-    }
+    mSelection.forEachControlPoint(mSketch->mModel,
+      [this, &offset](Model::ControlPoint* point)
+      {
+        mOrigins.push_back(point->position());
+        mDestinations.push_back(point->position() + offset);
+      });
   }
 
   void redo() override
   {
     auto pointIterator = mDestinations.begin();
 
-    for (auto& id : mSelection.mNodes) {
-      Node::position(mSketch->getNode(id)) = *pointIterator;
-      ++pointIterator;
-    }
+    mSelection.forEachNode(mSketch->mModel,
+      [this, &pointIterator](Model::Node* node)
+      {
+        Node::position(node) = *pointIterator;
+        ++pointIterator;
+      });
 
-    for (auto& id : mSelection.mControlPoints) {
-      ControlPoint::position(mSketch->getControlPoint(id)) = *pointIterator;
-      ++pointIterator;
-    }
+    mSelection.forEachControlPoint(mSketch->mModel,
+      [this, &pointIterator](Model::ControlPoint* point)
+      {
+        ControlPoint::position(point) = *pointIterator;
+        ++pointIterator;
+      });
   }
 
   void undo() override
   {
     auto pointIterator = mOrigins.begin();
 
-    for (auto& id : mSelection.mNodes) {
-      Node::position(mSketch->getNode(id)) = *pointIterator;
-      ++pointIterator;
-    }
+    mSelection.forEachNode(mSketch->mModel,
+      [this, &pointIterator](Model::Node* node)
+      {
+        Node::position(node) = *pointIterator;
+        ++pointIterator;
+      });
 
-    for (auto& id : mSelection.mControlPoints) {
-      ControlPoint::position(mSketch->getControlPoint(id)) = *pointIterator;
-      ++pointIterator;
-    }
+    mSelection.forEachControlPoint(mSketch->mModel,
+      [this, &pointIterator](Model::ControlPoint* point)
+      {
+        ControlPoint::position(point) = *pointIterator;
+        ++pointIterator;
+      });
   }
 
   std::string description() override
@@ -244,11 +255,13 @@ public:
   {
     const Model::Sketch::DrawOrder& drawOrder = mSketch->mModel->drawOrder();
 
-    for (auto& id : mSelection.mPaths) {
-      auto it = findDrawEntry(drawOrder, id);
-      int index = std::distance(drawOrder.begin(), it);
-      mOldDrawOrder[index] = id;
-    }
+    mSelection.forEachPathID(
+      [this, &drawOrder](const ID<Model::Path>& id)
+      {
+        auto it = findDrawEntry(drawOrder, id);
+        int index = std::distance(drawOrder.begin(), it);
+        mOldDrawOrder[index] = id;
+      });
   }
 
   void redo() override
@@ -300,12 +313,12 @@ public:
       movePath(id);
     }
 
-    for (auto& id : mSelection.mNodes) {
-      addNode(id);
-    }
-
-    for (auto& id : mSelection.mControlPoints) {
-      addControlPoint(id);
+    for (auto& reference : mSelection.mReferences) {
+      if (reference.type() == Model::Reference::Type::Node) {
+        addNode(reference.id<Model::Node>());
+      } else if (reference.type() == Model::Reference::Type::ControlPoint) {
+        addControlPoint(reference.id<Model::ControlPoint>());
+      }
     }
   }
 
@@ -316,9 +329,11 @@ public:
     Model::Sketch::DrawOrder& drawOrder = Sketch::drawOrder(mSketch->mModel);
     drawOrder.erase(findDrawEntry(drawOrder, mID));
 
-    for (auto& id : mSelection.mPaths) {
-      Sketch::paths(mSketch->mModel)[id] = subSketch->path(id);
-    }
+    mSelection.forEachPathID(
+      [this, subSketch](const ID<Model::Path>& id)
+      {
+        Sketch::paths(mSketch->mModel)[id] = subSketch->path(id);
+      });
 
     for (auto [index, id] : mOldDrawOrder) {
       drawOrder.insert(drawOrder.begin() + index, id);

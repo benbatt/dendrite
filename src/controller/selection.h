@@ -1,19 +1,9 @@
 #pragma once
 
-#include "utilities/id.h"
+#include "model/reference.h"
+#include "model/sketch.h"
 
 #include <set>
-
-namespace Model
-{
-
-class ControlPoint;
-class Node;
-class Path;
-class Reference;
-class Sketch;
-
-}
 
 namespace Controller
 {
@@ -22,52 +12,57 @@ struct Selection
 {
   void clear()
   {
-    mPaths.clear();
-    mNodes.clear();
-    mControlPoints.clear();
+    mReferences.clear();
   }
 
   bool contains(const Model::Reference& reference) const;
+  bool contains(Model::Reference::Type type) const;
+  int count(Model::Reference::Type type) const;
+
   void add(const Model::Reference& reference, const Model::Sketch* sketch);
   void remove(const Model::Reference& reference, const Model::Sketch* sketch);
 
-  bool contains(const ID<Model::Path>& id) const
+  template <class T_Callback>
+  void forEachPathID(T_Callback callback) const
   {
-    return mPaths.count(id) > 0;
+    for (const Model::Reference& reference : mReferences) {
+      if (reference.type() == Model::Reference::Type::Path) {
+        callback(reference.id<Model::Path>());
+      }
+    }
   }
 
-  bool contains(const ID<Model::Node>& id) const
+  template <class T_Callback>
+  void forEachNode(const Model::Sketch* sketch, T_Callback callback) const
   {
-    return mNodes.count(id) > 0;
+    for (const Model::Reference& reference : mReferences) {
+      if (reference.type() == Model::Reference::Type::Node) {
+        callback(sketch->node(reference.id<Model::Node>()));
+      }
+    }
   }
 
-  bool contains(const ID<Model::ControlPoint>& id) const
+  template <class T_Callback>
+  void forEachControlPoint(const Model::Sketch* sketch, T_Callback callback) const
   {
-    return mControlPoints.count(id) > 0;
+    for (const Model::Reference& reference : mReferences) {
+      if (reference.type() == Model::Reference::Type::ControlPoint) {
+        callback(sketch->controlPoint(reference.id<Model::ControlPoint>()));
+      }
+    }
   }
-
-  void add(const ID<Model::Path>& id, const Model::Sketch* sketch);
-  void remove(const ID<Model::Path>& id, const Model::Sketch* sketch);
-
-  void add(const ID<Model::Node>& id, const Model::Sketch* sketch);
-  void remove(const ID<Model::Node>& id, const Model::Sketch* sketch);
-
-  void add(const ID<Model::ControlPoint>& id);
-  void remove(const ID<Model::ControlPoint>& id);
 
   bool operator==(const Selection& other) const
   {
-    return mPaths == other.mPaths && mNodes == other.mNodes && mControlPoints == other.mControlPoints;
+    return mReferences == other.mReferences;
   }
 
   bool isEmpty() const
   {
-    return mPaths.empty() && mNodes.empty() && mControlPoints.empty();
+    return mReferences.empty();
   }
 
-  std::set<ID<Model::Path>> mPaths;
-  std::set<ID<Model::Node>> mNodes;
-  std::set<ID<Model::ControlPoint>> mControlPoints;
+  std::set<Model::Reference> mReferences;
 };
 
 }
