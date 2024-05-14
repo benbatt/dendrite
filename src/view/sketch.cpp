@@ -24,9 +24,9 @@ using Handle = Sketch::Handle;
 
 ID<Model::Path> findPath(Model::Sketch* sketch, double x, double y);
 
-HandleStyle handleStyle(NodeType nodeType, Handle::Type handleType)
+HandleStyle handleStyle(NodeType nodeType, Model::Type handleType)
 {
-  if (handleType == Handle::Type::Node) {
+  if (handleType == Model::Type::Node) {
     switch (nodeType) {
       case NodeType::Symmetric:
         return HandleStyle::Symmetric;
@@ -159,7 +159,7 @@ public:
 
   void draw(Sketch& sketch, cairo_t* context, int width, int height) override
   {
-    if (mConstrainDirection && mDragHandle.refersTo(Handle::Type::ControlPoint)) {
+    if (mConstrainDirection && mDragHandle.refersTo(Model::Type::ControlPoint)) {
       const Model::ControlPoint* controlPoint = mDragHandle.controlPoint(sketch.mModel);
 
       Point start = sketch.mModel->node(controlPoint->node())->position();
@@ -210,7 +210,7 @@ public:
             break;
         }
 
-        if (mDragHandle.refersTo(Handle::Type::ControlPoint)) {
+        if (mDragHandle.refersTo(Model::Type::ControlPoint)) {
           const Model::ControlPoint* controlPoint = mDragHandle.controlPoint(sketch.mModel);
           sketch.mController->controllerForControlPoint(mDragHandle.id<Model::ControlPoint>())
             .setPosition(controlPoint->position());
@@ -242,7 +242,7 @@ public:
 private:
   void setDirectionConstraint(Sketch& sketch)
   {
-    if (mDragHandle.refersTo(Handle::Type::ControlPoint)) {
+    if (mDragHandle.refersTo(Model::Type::ControlPoint)) {
       const Model::ControlPoint* controlPoint = mDragHandle.controlPoint(sketch.mModel);
       const Model::Node* node = sketch.mModel->node(controlPoint->node());
       mDirectionConstraint = (controlPoint->position() - node->position()).normalised();
@@ -253,7 +253,7 @@ private:
   {
     Point newPosition{x, y};
 
-    if (mConstrainDirection && handle.refersTo(Handle::Type::ControlPoint)) {
+    if (mConstrainDirection && handle.refersTo(Model::Type::ControlPoint)) {
       const Model::ControlPoint* controlPoint = handle.controlPoint(sketch.mModel);
       const Model::Node* node = sketch.mModel->node(controlPoint->node());
 
@@ -340,12 +340,12 @@ public:
     sketch.drawTangents(context);
 
     for (auto [id, node] : sketch.mModel->nodes()) {
-      drawHandle(context, handleStyle(node->type(), Handle::Type::Node), node->position(),
+      drawHandle(context, handleStyle(node->type(), Model::Type::Node), node->position(),
         sketch.mHoverHandle == id, sketch.mSelection.contains(id));
     }
 
     for (auto [id, point] : sketch.mModel->controlPoints()) {
-      drawHandle(context, handleStyle(NodeType::Sharp, Handle::Type::ControlPoint), point->position(),
+      drawHandle(context, handleStyle(NodeType::Sharp, Model::Type::ControlPoint), point->position(),
         sketch.mHoverHandle == id, sketch.mSelection.contains(id));
     }
   }
@@ -411,9 +411,9 @@ public:
     if (sketch.activeMode() == &mAdjustHandlesMode) {
       const Sketch::Handle& handle = mAdjustHandlesMode.dragHandle();
 
-      if (handle.refersTo(Handle::Type::ControlPoint)) {
+      if (handle.refersTo(Model::Type::ControlPoint)) {
         const Model::Node* node = sketch.mModel->node(handle.controlPoint(sketch.mModel)->node());
-        drawHandle(context, handleStyle(node->type(), Handle::Type::Node), node->position(), true);
+        drawHandle(context, handleStyle(node->type(), Model::Type::Node), node->position(), true);
       }
     }
   }
@@ -460,7 +460,7 @@ public:
       ID<Model::Node> nodeID = mSetPositionMode.dragHandle().id<Model::Node>();
       const Model::Path::EntryList& entries = sketch.mModel->path(mCurrentPath)->entries();
 
-      Handle attachHandle = sketch.findHandle(node->position().x, node->position().y, Handle::Type::ControlPoint,
+      Handle attachHandle = sketch.findHandle(node->position().x, node->position().y, Model::Type::ControlPoint,
           node->controlPoints());
 
       if (attachHandle.isValid()) {
@@ -513,7 +513,7 @@ public:
 private:
   void addNode(Sketch& sketch, const Handle& handle)
   {
-    if (!handle.refersTo(Handle::Type::ControlPoint)) {
+    if (!handle.refersTo(Model::Type::ControlPoint)) {
       return;
     }
 
@@ -618,7 +618,7 @@ public:
 
   void onPointerPressed(Sketch& sketch, double x, double y) override
   {
-    if (sketch.mHoverHandle.refersTo(Sketch::Handle::Type::Node)) {
+    if (sketch.mHoverHandle.refersTo(Model::Type::Node)) {
       sketch.mController->removeNode(sketch.mHoverHandle.id<Model::Node>());
       sketch.mHoverHandle = Sketch::Handle();
       sketch.Refresh();
@@ -715,11 +715,11 @@ void Sketch::onPaint(wxPaintEvent& event)
     drawTangents(context);
 
     for (auto [id, node] : mModel->nodes()) {
-      drawHandle(context, handleStyle(node->type(), Handle::Type::Node), node->position(), false, mSelection.contains(id));
+      drawHandle(context, handleStyle(node->type(), Model::Type::Node), node->position(), false, mSelection.contains(id));
     }
 
     for (auto [id, point] : mModel->controlPoints()) {
-      drawHandle(context, handleStyle(NodeType::Sharp, Handle::Type::ControlPoint), point->position(), false,
+      drawHandle(context, handleStyle(NodeType::Sharp, Model::Type::ControlPoint), point->position(), false,
         mSelection.contains(id));
     }
   }
@@ -791,9 +791,9 @@ void Sketch::onPaint(wxPaintEvent& event)
 void Sketch::drawSketch(cairo_t* context, const Model::Sketch* sketch, std::vector<Rectangle>* extents) const
 {
   for (const Handle& handle : sketch->drawOrder()) {
-    if (handle.type() == Handle::Type::Path) {
+    if (handle.type() == Model::Type::Path) {
       drawPath(context, handle.id<Model::Path>(), sketch, extents);
-    } else if (handle.type() == Handle::Type::Sketch) {
+    } else if (handle.type() == Model::Type::Sketch) {
       const Model::Sketch* subSketch = sketch->sketch(handle.id<Model::Sketch>());
       drawSketch(context, subSketch, extents);
     }
@@ -919,7 +919,7 @@ ID<Model::Path> findPath(Model::Sketch* sketch, double x, double y)
   ID<Model::Path> id;
 
   for (auto it = sketch->drawOrder().rbegin(); it != sketch->drawOrder().rend(); ++it) {
-    if (it->type() == Model::Reference::Type::Path) {
+    if (it->type() == Model::Type::Path) {
       Model::Path* path = sketch->path(it->id<Model::Path>());
 
       if (pointInPath(context, sketch, path, x, y)) {
@@ -1115,7 +1115,7 @@ void Sketch::activateViewMode()
 
 void Sketch::bringForward()
 {
-  if (mSelection.contains(Model::Reference::Type::Path)) {
+  if (mSelection.contains(Model::Type::Path)) {
     mUndoManager->beginGroup();
 
     mSelection.forEachPathID([this](const ID<Model::Path>& id) { mController->bringPathForward(id); });
@@ -1128,7 +1128,7 @@ void Sketch::bringForward()
 
 void Sketch::sendBackward()
 {
-  if (mSelection.contains(Model::Reference::Type::Path)) {
+  if (mSelection.contains(Model::Type::Path)) {
     mUndoManager->beginGroup();
 
     mSelection.forEachPathID([this](const ID<Model::Path>& id) { mController->sendPathBackward(id); });
@@ -1152,7 +1152,7 @@ void Sketch::onCancel()
 
 void Sketch::setStrokeColour(const wxColour& colour)
 {
-  if (mSelection.contains(Model::Reference::Type::Path)) {
+  if (mSelection.contains(Model::Type::Path)) {
     mUndoManager->beginGroup();
 
     mSelection.forEachPathID(
@@ -1169,7 +1169,7 @@ void Sketch::setStrokeColour(const wxColour& colour)
 
 void Sketch::setFillColour(const wxColour& colour)
 {
-  if (mSelection.contains(Model::Reference::Type::Path)) {
+  if (mSelection.contains(Model::Type::Path)) {
     mUndoManager->beginGroup();
 
     mSelection.forEachPathID(
@@ -1195,7 +1195,7 @@ void Sketch::setModel(Model::Sketch* model)
   refreshHandles();
 }
 
-Handle Sketch::findHandle(double x, double y, Handle::Type type,
+Handle Sketch::findHandle(double x, double y, Model::Type type,
   const Model::Node::ControlPointList& ignorePoints)
 {
   const float Radius = View::HandleSize / 2;
@@ -1205,7 +1205,7 @@ Handle Sketch::findHandle(double x, double y, Handle::Type type,
       && position.y - Radius <= y && y < position.y + Radius;
   };
 
-  if (type == Handle::Type::ControlPoint || type == Handle::Type::Null) {
+  if (type == Model::Type::ControlPoint || type == Model::Type::Null) {
     for (auto current : mModel->controlPoints()) {
       bool ignore = std::find(ignorePoints.begin(), ignorePoints.end(), current.first) != ignorePoints.end();
 
@@ -1215,7 +1215,7 @@ Handle Sketch::findHandle(double x, double y, Handle::Type type,
     }
   }
 
-  if (type == Handle::Type::Node || type == Handle::Type::Null) {
+  if (type == Model::Type::Node || type == Model::Type::Null) {
     for (auto current : mModel->nodes()) {
       if (withinRadius(current.second->position())) {
         return current.first;
@@ -1228,15 +1228,15 @@ Handle Sketch::findHandle(double x, double y, Handle::Type type,
 
 Handle Sketch::findHandle(double x, double y)
 {
-  return findHandle(x, y, Handle::Type::Null, {});
+  return findHandle(x, y, Model::Type::Null, {});
 }
 
 Point Sketch::handlePosition(const Handle& handle) const
 {
   switch (handle.type()) {
-    case Handle::Type::Node:
+    case Model::Type::Node:
       return handle.node(mModel)->position();
-    case Handle::Type::ControlPoint:
+    case Model::Type::ControlPoint:
       return handle.controlPoint(mModel)->position();
     default:
       return Point();
@@ -1246,14 +1246,14 @@ Point Sketch::handlePosition(const Handle& handle) const
 void Sketch::setHandlePosition(const Handle& handle, const Point& position)
 {
   switch (handle.type()) {
-    case Handle::Type::Node:
+    case Model::Type::Node:
       mController->controllerForNode(handle.id<Model::Node>()).setPosition(position);
       break;
-    case Handle::Type::ControlPoint:
+    case Model::Type::ControlPoint:
       mController->controllerForControlPoint(handle.id<Model::ControlPoint>()).setPosition(position);
       break;
-    case Handle::Type::Path:
-    case Handle::Type::Null:
+    case Model::Type::Path:
+    case Model::Type::Null:
       break;
   }
 }
@@ -1415,9 +1415,9 @@ int Sketch::MouseEventsManager::affirmIndex(const Handle& handle)
 ID<Model::Node> Sketch::nodeIDForHandle(const Handle& handle)
 {
   switch (handle.type()) {
-    case Handle::Type::Node:
+    case Model::Type::Node:
       return handle.id<Model::Node>();
-    case Handle::Type::ControlPoint:
+    case Model::Type::ControlPoint:
       return handle.controlPoint(mModel)->node();
     default:
       return ID<Model::Node>();

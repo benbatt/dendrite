@@ -16,8 +16,8 @@ struct Selection
   }
 
   bool contains(const Model::Reference& reference) const;
-  bool contains(Model::Reference::Type type) const;
-  int count(Model::Reference::Type type) const;
+  bool contains(Model::Type type) const;
+  int count(Model::Type type) const;
 
   void add(const Model::Reference& reference, const Model::Sketch* sketch);
   void remove(const Model::Reference& reference, const Model::Sketch* sketch);
@@ -26,7 +26,7 @@ struct Selection
   void forEachPathID(T_Callback callback) const
   {
     for (const Model::Reference& reference : mReferences) {
-      if (reference.type() == Model::Reference::Type::Path) {
+      if (reference.type() == Model::Type::Path) {
         callback(reference.id<Model::Path>());
       }
     }
@@ -36,7 +36,7 @@ struct Selection
   void forEachNode(const Model::Sketch* sketch, T_Callback callback) const
   {
     for (const Model::Reference& reference : mReferences) {
-      if (reference.type() == Model::Reference::Type::Node) {
+      if (reference.type() == Model::Type::Node) {
         callback(sketch->node(reference.id<Model::Node>()));
       }
     }
@@ -46,7 +46,7 @@ struct Selection
   void forEachControlPoint(const Model::Sketch* sketch, T_Callback callback) const
   {
     for (const Model::Reference& reference : mReferences) {
-      if (reference.type() == Model::Reference::Type::ControlPoint) {
+      if (reference.type() == Model::Type::ControlPoint) {
         callback(sketch->controlPoint(reference.id<Model::ControlPoint>()));
       }
     }

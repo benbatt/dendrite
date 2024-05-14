@@ -59,8 +59,8 @@ public:
     : mSketch(sketch)
     , mSelection(selection)
   {
-    const int PointCount = mSelection.count(Model::Reference::Type::Node)
-      + mSelection.count(Model::Reference::Type::ControlPoint);
+    const int PointCount = mSelection.count(Model::Type::Node)
+      + mSelection.count(Model::Type::ControlPoint);
 
     mOrigins.reserve(PointCount);
     mDestinations.reserve(PointCount);
@@ -314,9 +314,9 @@ public:
     }
 
     for (auto& reference : mSelection.mReferences) {
-      if (reference.type() == Model::Reference::Type::Node) {
+      if (reference.type() == Model::Type::Node) {
         addNode(reference.id<Model::Node>());
-      } else if (reference.type() == Model::Reference::Type::ControlPoint) {
+      } else if (reference.type() == Model::Type::ControlPoint) {
         addControlPoint(reference.id<Model::ControlPoint>());
       }
     }

@@ -58,7 +58,7 @@ private:
   void onCancel();
   void setModel(Model::Sketch* model);
 
-  Handle findHandle(double x, double y, Handle::Type type, const Model::Node::ControlPointList& ignoreControlPoints);
+  Handle findHandle(double x, double y, Model::Type type, const Model::Node::ControlPointList& ignoreControlPoints);
   Handle findHandle(double x, double y);
 
   Point handlePosition(const Handle& handle) const;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "model/type.h"
 #include "utilities/id.h"
 
 namespace Serialisation
@@ -18,15 +19,6 @@ class Sketch;
 class Reference
 {
 public:
-  enum class Type
-  {
-    Path,
-    Node,
-    ControlPoint,
-    Sketch,
-    Null,
-  };
-
   Reference(Type type, int id)
     : mType(type)
     , mID(id)

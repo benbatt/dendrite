@@ -217,11 +217,11 @@ Model::Document* Layout::process(TEndpoint& endpoint, Model::Document* document)
       [](TEndpoint& endpoint, Model::Reference* reference) {
         endpoint.asUint32(&reference->mType);
 
-        if (reference->mType == Model::Reference::Type::Path) {
+        if (reference->mType == Model::Type::Path) {
           ID<Model::Path> id(reference->mID);
           endpoint.id(&id);
           reference->mID = id.value();
-        } else if (reference->mType == Model::Reference::Type::Sketch) {
+        } else if (reference->mType == Model::Type::Sketch) {
           ID<Model::Sketch> id(reference->mID);
           endpoint.id(&id);
           reference->mID = id.value();
@@ -235,7 +235,7 @@ Model::Document* Layout::process(TEndpoint& endpoint, Model::Document* document)
     std::vector<ID<Model::Path>> drawOrder;
 
     for (auto& [type, id] : sketch->drawOrder()) {
-      if (type == Model::Reference::Type::Path) {
+      if (type == Model::Type::Path) {
         drawOrder.push_back(ID<Model::Path>(id));
       }
     }

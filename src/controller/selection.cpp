@@ -14,7 +14,7 @@ bool Selection::contains(const Reference& reference) const
   return mReferences.count(reference) > 0;
 }
 
-bool Selection::contains(Model::Reference::Type type) const
+bool Selection::contains(Model::Type type) const
 {
   for (auto& reference : mReferences) {
     if (reference.type() == type) {
@@ -25,7 +25,7 @@ bool Selection::contains(Model::Reference::Type type) const
   return false;
 }
 
-int Selection::count(Model::Reference::Type type) const
+int Selection::count(Model::Type type) const
 {
   int result = 0;
 
@@ -43,7 +43,7 @@ void Selection::add(const Reference& reference, const Model::Sketch* sketch)
   mReferences.insert(reference);
 
   switch (reference.type()) {
-    case Reference::Type::Path:
+    case Model::Type::Path:
       {
         const Model::Path* path = sketch->path(reference.id<Model::Path>());
 
@@ -53,7 +53,7 @@ void Selection::add(const Reference& reference, const Model::Sketch* sketch)
 
         break;
       }
-    case Reference::Type::Node:
+    case Model::Type::Node:
       {
         const Model::Node* node = sketch->node(reference.id<Model::Node>());
 
@@ -63,8 +63,8 @@ void Selection::add(const Reference& reference, const Model::Sketch* sketch)
 
         break;
       }
-    case Reference::Type::ControlPoint:
-    case Reference::Type::Null:
+    case Model::Type::ControlPoint:
+    case Model::Type::Null:
       break;
   }
 }
@@ -74,7 +74,7 @@ void Selection::remove(const Reference& reference, const Model::Sketch* sketch)
   mReferences.erase(reference);
 
   switch (reference.type()) {
-    case Reference::Type::Path:
+    case Model::Type::Path:
       {
         const Model::Path* path = sketch->path(reference.id<Model::Path>());
 
@@ -84,7 +84,7 @@ void Selection::remove(const Reference& reference, const Model::Sketch* sketch)
 
         break;
       }
-    case Reference::Type::Node:
+    case Model::Type::Node:
       {
         const Model::Node* node = sketch->node(reference.id<Model::Node>());
 
@@ -94,8 +94,8 @@ void Selection::remove(const Reference& reference, const Model::Sketch* sketch)
 
         break;
       }
-    case Reference::Type::ControlPoint:
-    case Reference::Type::Null:
+    case Model::Type::ControlPoint:
+    case Model::Type::Null:
       break;
   }
 }
