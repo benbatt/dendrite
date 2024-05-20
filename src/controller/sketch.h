@@ -30,7 +30,7 @@ public:
   void bringPathForward(const ID<Model::Path>& id);
   void sendPathBackward(const ID<Model::Path>& id);
   void removeNode(const ID<Model::Node>& id);
-  void createSubSketch(const Selection& selection);
+  ID<Model::Sketch> createSubSketch(const Selection& selection);
 
 private:
   friend class AddNodeCommand;

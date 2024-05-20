@@ -248,10 +248,10 @@ void Sketch::removeNode(const ID<Model::Node>& nodeID)
 class CreateSubSketchCommand : public UndoCommand
 {
 public:
-  CreateSubSketchCommand(Sketch* sketch, const Selection& selection)
+  CreateSubSketchCommand(Sketch* sketch, const Selection& selection, const ID<Model::Sketch>& id)
     : mSketch(sketch)
     , mSelection(selection)
-    , mID(sketch->nextID())
+    , mID(id)
   {
     const Model::Sketch::DrawOrder& drawOrder = mSketch->mModel->drawOrder();
 
@@ -355,9 +355,13 @@ private:
   ID<Model::Sketch> mID;
 };
 
-void Sketch::createSubSketch(const Selection& selection)
+ID<Model::Sketch> Sketch::createSubSketch(const Selection& selection)
 {
-  mUndoManager->pushCommand(new CreateSubSketchCommand(this, selection));
+  ID<Model::Sketch> id(nextID());
+
+  mUndoManager->pushCommand(new CreateSubSketchCommand(this, selection, id));
+
+  return id;
 }
 
 Model::Node* Sketch::getNode(const ID<Model::Node>& id)

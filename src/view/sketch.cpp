@@ -1124,8 +1124,9 @@ void Sketch::activateDeleteMode()
 void Sketch::groupSelection()
 {
   if (mModeStack.empty() && !mSelection.isEmpty()) {
-    mController->createSubSketch(mSelection);
+    ID<Model::Sketch> id = mController->createSubSketch(mSelection);
     mSelection.clear();
+    mSelection.add(id, mModel);
     Refresh();
   }
 }
