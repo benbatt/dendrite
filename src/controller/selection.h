@@ -52,6 +52,16 @@ struct Selection
     }
   }
 
+  template <class T_Callback>
+  void forEachSubSketch(const Model::Sketch* sketch, T_Callback callback) const
+  {
+    for (const Model::Reference& reference : mReferences) {
+      if (reference.type() == Model::Type::Sketch) {
+        callback(sketch->sketch(reference.id<Model::Sketch>()));
+      }
+    }
+  }
+
   bool operator==(const Selection& other) const
   {
     return mReferences == other.mReferences;

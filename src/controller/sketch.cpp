@@ -78,6 +78,13 @@ public:
         mOrigins.push_back(point->position());
         mDestinations.push_back(point->position() + offset);
       });
+
+    mSelection.forEachSubSketch(mSketch->mModel,
+      [this, &offset](Model::Sketch* sketch)
+      {
+        mOrigins.push_back(sketch->position());
+        mDestinations.push_back(sketch->position() + offset);
+      });
   }
 
   void redo() override
@@ -95,6 +102,13 @@ public:
       [this, &pointIterator](Model::ControlPoint* point)
       {
         ControlPoint::position(point) = *pointIterator;
+        ++pointIterator;
+      });
+
+    mSelection.forEachSubSketch(mSketch->mModel,
+      [this, &pointIterator](Model::Sketch* sketch)
+      {
+        Sketch::position(sketch) = *pointIterator;
         ++pointIterator;
       });
   }
@@ -116,11 +130,18 @@ public:
         ControlPoint::position(point) = *pointIterator;
         ++pointIterator;
       });
+
+    mSelection.forEachSubSketch(mSketch->mModel,
+      [this, &pointIterator](Model::Sketch* sketch)
+      {
+        Sketch::position(sketch) = *pointIterator;
+        ++pointIterator;
+      });
   }
 
   std::string description() override
   {
-    return "Move path";
+    return "Move selection";
   }
 
   bool mergeWith(UndoCommand* other) override
@@ -440,6 +461,11 @@ Model::Sketch::PathList& Sketch::paths(Model::Sketch* sketch)
 Model::Sketch::SketchList& Sketch::sketches(Model::Sketch* sketch)
 {
   return sketch->mSketches;
+}
+
+Point& Sketch::position(Model::Sketch* sketch)
+{
+  return sketch->mPosition;
 }
 
 }

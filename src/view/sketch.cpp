@@ -801,8 +801,21 @@ void Sketch::drawSketch(cairo_t* context, const Model::Sketch* sketch, std::vect
     if (handle.type() == Model::Type::Path) {
       drawPath(context, handle.id<Model::Path>(), sketch, getExtents ? &currentExtents : nullptr);
     } else if (handle.type() == Model::Type::Sketch) {
+      cairo_save(context);
+
       const Model::Sketch* subSketch = sketch->sketch(handle.id<Model::Sketch>());
+      cairo_translate(context, subSketch->position().x, subSketch->position().y);
+
       drawSketch(context, subSketch, nullptr, getExtents ? &currentExtents : nullptr);
+
+      if (getExtents) {
+        cairo_matrix_t matrix;
+        cairo_get_matrix(context, &matrix);
+        cairo_matrix_transform_point(&matrix, &currentExtents.left, &currentExtents.top);
+        cairo_matrix_transform_point(&matrix, &currentExtents.right, &currentExtents.bottom);
+      }
+
+      cairo_restore(context);
     }
 
     if (getExtents) {

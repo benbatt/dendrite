@@ -2,6 +2,7 @@
 
 #include "model/reference.h"
 #include "utilities/id.h"
+#include "utilities/geometry.h"
 
 #include <unordered_map>
 #include <vector>
@@ -62,6 +63,8 @@ public:
   typedef std::vector<Reference> DrawOrder;
   const DrawOrder& drawOrder() const { return mDrawOrder; }
 
+  const Point& position() const { return mPosition; }
+
 private:
   friend class Controller::Sketch;
   friend class Serialisation::Layout;
@@ -78,6 +81,7 @@ private:
   SketchList mSketches;
   DrawOrder mDrawOrder;
   Document* mParent;
+  Point mPosition;
 };
 
 }

@@ -56,6 +56,7 @@ private:
   static Model::Sketch::NodeList& nodes(Model::Sketch* sketch);
   static Model::Sketch::PathList& paths(Model::Sketch* sketch);
   static Model::Sketch::SketchList& sketches(Model::Sketch* sketch);
+  static Point& position(Model::Sketch* sketch);
 
   UndoManager* mUndoManager;
   Model::Sketch* mModel;
