@@ -22,7 +22,7 @@ enum class HandleStyle
 using NodeType = Model::Node::Type;
 using Handle = Sketch::Handle;
 
-ID<Model::Path> findPath(Model::Sketch* sketch, double x, double y);
+Handle findElement(Model::Sketch* sketch, double x, double y);
 
 HandleStyle handleStyle(NodeType nodeType, Model::Type handleType)
 {
@@ -709,7 +709,7 @@ void Sketch::onPaint(wxPaintEvent& event)
 
   std::vector<Rectangle> extents;
 
-  drawSketch(context, mModel, &extents);
+  drawSketch(context, mModel, &extents, nullptr);
 
   if (mShowDetails && mModeStack.empty()) {
     drawTangents(context);
@@ -788,28 +788,47 @@ void Sketch::onPaint(wxPaintEvent& event)
   dc.DrawBitmap(wxBitmap(image), 0, 0);
 }
 
-void Sketch::drawSketch(cairo_t* context, const Model::Sketch* sketch, std::vector<Rectangle>* extents) const
+void Sketch::drawSketch(cairo_t* context, const Model::Sketch* sketch, std::vector<Rectangle>* selectedExtents,
+  Rectangle* extents) const
 {
+  bool first = true;
+
   for (const Handle& handle : sketch->drawOrder()) {
+    Rectangle currentExtents = { 0 };
+
+    bool getExtents = extents || (selectedExtents && mSelection.contains(handle));
+
     if (handle.type() == Model::Type::Path) {
-      drawPath(context, handle.id<Model::Path>(), sketch, extents);
+      drawPath(context, handle.id<Model::Path>(), sketch, getExtents ? &currentExtents : nullptr);
     } else if (handle.type() == Model::Type::Sketch) {
       const Model::Sketch* subSketch = sketch->sketch(handle.id<Model::Sketch>());
-      drawSketch(context, subSketch, extents);
+      drawSketch(context, subSketch, nullptr, getExtents ? &currentExtents : nullptr);
     }
+
+    if (getExtents) {
+      if (extents) {
+        if (first) {
+          *extents = currentExtents;
+        } else {
+          extents->grow(currentExtents);
+        }
+      } else if (selectedExtents) {
+        selectedExtents->push_back(currentExtents);
+      }
+    }
+
+    first = false;
   }
 }
 
 void Sketch::drawPath(cairo_t* context, const ID<Model::Path>& id, const Model::Sketch* sketch,
-  std::vector<Rectangle>* extents) const
+  Rectangle* extents) const
 {
   const Model::Path* path = sketch->path(id);
 
   if (pathToCairo(context, path, sketch)) {
-    if (mSelection.contains(id)) {
-      Rectangle r;
-      cairo_path_extents(context, &r.left, &r.top, &r.right, &r.bottom);
-      extents->push_back(r);
+    if (extents) {
+      cairo_path_extents(context, &extents->left, &extents->top, &extents->right, &extents->bottom);
     }
 
     {
@@ -910,20 +929,29 @@ bool pointInPath(cairo_t* context, Model::Sketch* sketch, Model::Path* path, dou
   return result;
 }
 
-ID<Model::Path> findPath(Model::Sketch* sketch, double x, double y)
+Handle findElement(Model::Sketch* sketch, double x, double y)
 {
   cairo_t* context = createCollisionDetectionContext();
 
   cairo_set_line_width(context, 4);
 
-  ID<Model::Path> id;
+  Handle handle;
 
   for (auto it = sketch->drawOrder().rbegin(); it != sketch->drawOrder().rend(); ++it) {
     if (it->type() == Model::Type::Path) {
       Model::Path* path = sketch->path(it->id<Model::Path>());
 
       if (pointInPath(context, sketch, path, x, y)) {
-        id = it->id<Model::Path>();
+        handle = *it;
+        break;
+      }
+    } else if (it->type() == Model::Type::Sketch) {
+      Model::Sketch* subSketch = sketch->sketch(it->id<Model::Sketch>());
+
+      Handle subHandle = findElement(subSketch, x, y);
+
+      if (subHandle.isValid()) {
+        handle = *it;
         break;
       }
     }
@@ -931,7 +959,7 @@ ID<Model::Path> findPath(Model::Sketch* sketch, double x, double y)
 
   cairo_destroy(context);
 
-  return id;
+  return handle;
 }
 
 bool rectangleIntersectsCairoPath(const Rectangle& rectangle, cairo_path_t* path, bool implicitlyClosed)
@@ -1381,7 +1409,7 @@ int Sketch::MouseEventsManager::MouseHitTest(const wxPoint& position)
       }
     }
 
-    Handle handle = findPath(mSketch->mModel, position.x, position.y);
+    Handle handle = findElement(mSketch->mModel, position.x, position.y);
 
     mSketch->mDragArea.left = position.x;
     mSketch->mDragArea.top = position.y;

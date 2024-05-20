@@ -39,9 +39,9 @@ private:
   friend class SketchModePlaceSelection;
 
   void onPaint(wxPaintEvent& event);
-  void drawSketch(cairo_t* context, const Model::Sketch* sketch, std::vector<Rectangle>* extents) const;
-  void drawPath(cairo_t* context, const ID<Model::Path>& id, const Model::Sketch* sketch,
-    std::vector<Rectangle>* extents) const;
+  void drawSketch(cairo_t* context, const Model::Sketch* sketch, std::vector<Rectangle>* selectedExtents,
+    Rectangle* extents) const;
+  void drawPath(cairo_t* context, const ID<Model::Path>& id, const Model::Sketch* sketch, Rectangle* extents) const;
   void drawTangents(cairo_t* context);
   void onPointerPressed(wxMouseEvent& event);
   void onSecondaryPointerPressed(wxMouseEvent& event);

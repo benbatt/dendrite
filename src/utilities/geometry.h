@@ -35,6 +35,8 @@ struct Rectangle
   bool contains(const Point& point) const;
   bool intersectsLine(const Point& p1, const Point& p2) const;
 
+  void grow(const Rectangle& other);
+
   double width() const { return right - left; }
   double height() const { return bottom - top; }
 

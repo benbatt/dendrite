@@ -114,3 +114,11 @@ bool Rectangle::intersectsLine(const Point& p1, const Point& p2) const
 
   return false;
 }
+
+void Rectangle::grow(const Rectangle& other)
+{
+  left = std::min(left, other.left);
+  top = std::min(top, other.top);
+  right = std::max(right, other.right);
+  bottom = std::max(bottom, other.bottom);
+}
