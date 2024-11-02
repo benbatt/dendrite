@@ -22,6 +22,8 @@ enum class HandleStyle
 using NodeType = Model::Node::Type;
 using Handle = Sketch::Handle;
 
+Handle findHandle(const Model::Sketch* sketch, double x, double y, Model::Type type,
+  const Model::Node::ControlPointList& ignoreControlPoints);
 Handle findElement(Model::Sketch* sketch, double x, double y);
 
 HandleStyle handleStyle(NodeType nodeType, Model::Type handleType)
@@ -129,6 +131,60 @@ void drawHandle(cairo_t* context, HandleStyle style, const Point& position, bool
   cairo_fill(context);
 }
 
+void drawTangents(cairo_t* context, const Model::Sketch* sketch)
+{
+  for (auto current : sketch->paths()) {
+    for (const Model::Path::Entry& entry : current.second->entries()) {
+      const Point& nodePosition = sketch->node(entry.mNode)->position() + sketch->position();
+      const Point& preControl = sketch->controlPoint(entry.mPreControl)->position() + sketch->position();
+      const Point& postControl = sketch->controlPoint(entry.mPostControl)->position() + sketch->position();
+
+      cairo_move_to(context, preControl.x, preControl.y);
+      cairo_line_to(context, nodePosition.x, nodePosition.y);
+      cairo_line_to(context, postControl.x, postControl.y);
+    }
+  }
+
+  cairo_set_source_rgb(context, 0, 0, 0);
+  cairo_set_line_width(context, 0.5);
+  cairo_stroke(context);
+}
+
+void drawSketchDetails(cairo_t* context, const Model::Sketch* sketch, const Sketch::Handle& hoverHandle,
+  const Controller::Selection& selection)
+{
+  drawTangents(context, sketch);
+
+  auto drawNode = [context, sketch, hoverHandle, selection](const ID<Model::Node>& id)
+  {
+    const Model::Node* node = sketch->node(id);
+    drawHandle(context, handleStyle(node->type(), Model::Type::Node), node->position() + sketch->position(),
+      hoverHandle == id, selection.contains(id));
+  };
+
+  auto drawControlPoint = [context, sketch, hoverHandle, selection](const ID<Model::ControlPoint>& id)
+  {
+    const Model::ControlPoint* point = sketch->controlPoint(id);
+    drawHandle(context, handleStyle(NodeType::Sharp, Model::Type::ControlPoint), point->position() + sketch->position(),
+      hoverHandle == id, selection.contains(id));
+  };
+
+  for (const Handle& handle : sketch->drawOrder()) {
+    if (handle.type() == Model::Type::Path) {
+      const Model::Path* path = sketch->path(handle.id<Model::Path>());
+
+      for (const Model::Path::Entry& entry : path->entries()) {
+        drawNode(entry.mNode);
+        drawControlPoint(entry.mPreControl);
+        drawControlPoint(entry.mPostControl);
+      }
+    } else if (handle.type() == Model::Type::Sketch) {
+      const Model::Sketch* subSketch = sketch->sketch(handle.id<Model::Sketch>());
+      drawSketchDetails(context, subSketch, hoverHandle, selection);
+    }
+  }
+}
+
 class SketchModePlace : public Sketch::Mode
 {
 public:
@@ -139,15 +195,22 @@ public:
   { }
 
   const Handle& dragHandle() const { return mDragHandle; }
-  void setDragHandle(const Handle& handle)
+  const Point& lastMousePosition() const { return mLastMousePosition; }
+
+  void prepare(const Handle& dragHandle, const Point& mousePosition)
   {
-    mDragHandle = handle;
+    mDragHandle = dragHandle;
+    mLastMousePosition = mInitialMousePosition = mousePosition;
   }
 
   void begin(Sketch& sketch) override
   {
     mPreviousCursor = sketch.GetCursor();
     sketch.SetCursor(wxCURSOR_BLANK);
+
+    if (mDragHandle.isValid()) {
+      mInitialHandlePosition = sketch.handlePosition(mDragHandle);
+    }
 
     setDirectionConstraint(sketch);
   }
@@ -177,13 +240,17 @@ public:
 
   void onPointerPressed(Sketch& sketch, double x, double y) override
   {
+    mLastMousePosition = Point{x, y};
     sketch.popMode(this);
   }
 
   bool onPointerMotion(Sketch& sketch, double x, double y) override
   {
+    mLastMousePosition = Point{x, y};
+
     if (mDragHandle.isValid()) {
-      setHandlePosition(sketch, mDragHandle, x, y);
+      Point newPosition = mInitialHandlePosition + (Point{x, y} - mInitialMousePosition);
+      setHandlePosition(sketch, mDragHandle, newPosition.x, newPosition.y);
     }
 
     return true;
@@ -269,6 +336,9 @@ private:
   }
 
   wxCursor mPreviousCursor;
+  Point mInitialMousePosition;
+  Point mLastMousePosition;
+  Point mInitialHandlePosition;
   Vector mDirectionConstraint;
   bool mConstrainDirection;
   Handle mDragHandle;
@@ -337,17 +407,7 @@ public:
 
   void draw(Sketch& sketch, cairo_t* context, int width, int height) override
   {
-    sketch.drawTangents(context);
-
-    for (auto [id, node] : sketch.mModel->nodes()) {
-      drawHandle(context, handleStyle(node->type(), Model::Type::Node), node->position(),
-        sketch.mHoverHandle == id, sketch.mSelection.contains(id));
-    }
-
-    for (auto [id, point] : sketch.mModel->controlPoints()) {
-      drawHandle(context, handleStyle(NodeType::Sharp, Model::Type::ControlPoint), point->position(),
-        sketch.mHoverHandle == id, sketch.mSelection.contains(id));
-    }
+    drawSketchDetails(context, sketch.mModel, sketch.mHoverHandle, sketch.mSelection);
   }
 
   void onPointerPressed(Sketch& sketch, double x, double y) override
@@ -356,7 +416,7 @@ public:
       sketch.mUndoManager->beginGroup();
 
       if (sketch.mSelection.isEmpty()) {
-        mPlaceMode.setDragHandle(sketch.mHoverHandle);
+        mPlaceMode.prepare(sketch.mHoverHandle, Point{x, y});
         sketch.pushMode(&mPlaceMode);
       } else {
         mPlaceSelectionMode.prepare(x, y);
@@ -397,16 +457,7 @@ public:
 
   void draw(Sketch& sketch, cairo_t* context, int width, int height) override
   {
-    sketch.drawTangents(context);
-
-    for (auto current : sketch.mModel->paths()) {
-      for (const Model::Path::Entry& entry : current.second->entries()) {
-        drawHandle(context, HandleStyle::Add, sketch.mModel->controlPoint(entry.mPreControl)->position(),
-          sketch.mHoverHandle == entry.mPreControl);
-        drawHandle(context, HandleStyle::Add, sketch.mModel->controlPoint(entry.mPostControl)->position(),
-          sketch.mHoverHandle == entry.mPostControl);
-      }
-    }
+    drawDetails(context, sketch.mModel, sketch.mHoverHandle);
 
     if (sketch.activeMode() == &mAdjustHandlesMode) {
       const Sketch::Handle& handle = mAdjustHandlesMode.dragHandle();
@@ -418,10 +469,35 @@ public:
     }
   }
 
+  void drawDetails(cairo_t* context, const Model::Sketch* sketch, const Sketch::Handle& hoverHandle)
+  {
+    drawTangents(context, sketch);
+
+    auto drawControlPoint = [context, sketch, hoverHandle](const ID<Model::ControlPoint>& id)
+    {
+      const Model::ControlPoint* point = sketch->controlPoint(id);
+      drawHandle(context, HandleStyle::Add, point->position() + sketch->position(), hoverHandle == id);
+    };
+
+    for (const Handle& handle : sketch->drawOrder()) {
+      if (handle.type() == Model::Type::Path) {
+        const Model::Path* path = sketch->path(handle.id<Model::Path>());
+
+        for (const Model::Path::Entry& entry : path->entries()) {
+          drawControlPoint(entry.mPreControl);
+          drawControlPoint(entry.mPostControl);
+        }
+      } else if (handle.type() == Model::Type::Sketch) {
+        const Model::Sketch* subSketch = sketch->sketch(handle.id<Model::Sketch>());
+        drawDetails(context, subSketch, hoverHandle);
+      }
+    }
+  }
+
   void onPointerPressed(Sketch& sketch, double x, double y) override
   {
     if (sketch.mHoverHandle.isValid()) {
-      addNode(sketch, sketch.mHoverHandle);
+      addNode(sketch, sketch.mHoverHandle, Point{x, y});
       sketch.mHoverHandle = Sketch::Handle();
     } else {
       Point position{x, y};
@@ -431,7 +507,7 @@ public:
       mCurrentPath = sketch.mController->addPath();
       sketch.mController->controllerForPath(mCurrentPath).addSymmetricNode(0, position, position);
 
-      mAdjustHandlesMode.setDragHandle(sketch.mModel->path(mCurrentPath)->entries()[0].mPostControl);
+      mAdjustHandlesMode.prepare(sketch.mModel->path(mCurrentPath)->entries()[0].mPostControl, position);
       sketch.pushMode(&mAdjustHandlesMode);
     }
   }
@@ -460,7 +536,7 @@ public:
       ID<Model::Node> nodeID = mSetPositionMode.dragHandle().id<Model::Node>();
       const Model::Path::EntryList& entries = sketch.mModel->path(mCurrentPath)->entries();
 
-      Handle attachHandle = sketch.findHandle(node->position().x, node->position().y, Model::Type::ControlPoint,
+      Handle attachHandle = findHandle(sketch.mModel, node->position().x, node->position().y, Model::Type::ControlPoint,
           node->controlPoints());
 
       if (attachHandle.isValid()) {
@@ -496,9 +572,9 @@ public:
         }
       } else {
         if (nodeID == entries.front().mNode) {
-          mAdjustHandlesMode.setDragHandle(entries.front().mPreControl);
+          mAdjustHandlesMode.prepare(entries.front().mPreControl, mSetPositionMode.lastMousePosition());
         } else if (nodeID == entries.back().mNode) {
-          mAdjustHandlesMode.setDragHandle(entries.back().mPostControl);
+          mAdjustHandlesMode.prepare(entries.back().mPostControl, mSetPositionMode.lastMousePosition());
         }
 
         sketch.pushMode(&mAdjustHandlesMode);
@@ -506,62 +582,77 @@ public:
     } else if (child == &mAdjustHandlesMode) {
       sketch.mUndoManager->endGroup();
 
-      addNode(sketch, mAdjustHandlesMode.dragHandle());
+      addNode(sketch, mAdjustHandlesMode.dragHandle(), mAdjustHandlesMode.lastMousePosition());
     }
   }
 
 private:
-  void addNode(Sketch& sketch, const Handle& handle)
+  std::tuple<int, ID<Model::Path>, Model::Path::Entry> findAddLocation(const Model::Sketch* sketch,
+    const Handle& searchHandle)
+  {
+    for (const Handle& handle : sketch->drawOrder()) {
+      if (handle.type() == Model::Type::Path) {
+        ID<Model::Path> pathID = handle.id<Model::Path>();
+        const Model::Path* path = sketch->path(pathID);
+        const Model::Path::EntryList& entries = path->entries();
+
+        if (entries.empty()) {
+          continue;
+        }
+
+        if (!path->isClosed()) {
+          if (searchHandle == entries.front().mPreControl) {
+            return {0, pathID, Model::Path::Entry()};
+          } else if (searchHandle == entries.back().mPostControl) {
+            return {entries.size(), pathID, Model::Path::Entry()};
+          }
+        }
+
+        auto it = std::find_if(entries.begin(), entries.end(),
+          [&searchHandle](const Model::Path::Entry& entry) -> bool {
+            return searchHandle == entry.mPreControl || searchHandle == entry.mPostControl;
+          });
+
+        if (it != entries.end()) {
+          return {(searchHandle == it->mPreControl) ? 0 : 1, ID<Model::Path>(), *it};
+        }
+      } else if (handle.type() == Model::Type::Sketch) {
+        const Model::Sketch* subSketch = sketch->sketch(handle.id<Model::Sketch>());
+        auto result = findAddLocation(subSketch, searchHandle);
+
+        if (std::get<0>(result) >= 0) {
+          return result;
+        }
+      }
+    }
+
+    return {-1, ID<Model::Path>(), Model::Path::Entry()};
+  }
+
+  void addNode(Sketch& sketch, const Handle& handle, const Point& mousePosition)
   {
     if (!handle.refersTo(Model::Type::ControlPoint)) {
       return;
     }
 
-    for (auto current : sketch.mModel->paths()) {
-      const Model::Path* path = current.second;
-      const Model::Path::EntryList& entries = path->entries();
+    auto [addIndex, pathID, pathEntry] = findAddLocation(sketch.mModel, handle);
 
-      if (entries.empty()) {
-        continue;
-      }
-
-      Model::Path::EntryList::const_iterator entryIterator = entries.end();
-      int addIndex = -1;
-
-      if (!path->isClosed() && handle == entries.front().mPreControl) {
-        addIndex = 0;
-      } else if (!path->isClosed() && handle == entries.back().mPostControl) {
-        addIndex = entries.size();
-      } else {
-        entryIterator = std::find_if(entries.begin(), entries.end(),
-          [&handle](const Model::Path::Entry& entry) -> bool {
-            return handle == entry.mPreControl || handle == entry.mPostControl;
-          });
-
-        if (entryIterator == entries.end()) {
-          continue;
-        }
-
-        addIndex = (handle == entryIterator->mPreControl) ? 0 : 1;
-      }
-
+    if (addIndex >= 0) {
       sketch.mUndoManager->beginGroup();
 
-      mCurrentPath = current.first;
-
-      if (entryIterator != entries.end()) {
+      if (pathID.isValid()) {
+        mCurrentPath = pathID;
+      } else {
         mCurrentPath = sketch.mController->addPath();
-        sketch.mController->controllerForPath(mCurrentPath).addEntry(0, *entryIterator);
+        sketch.mController->controllerForPath(mCurrentPath).addEntry(0, pathEntry);
       }
 
       const Point& position = handle.controlPoint(sketch.mModel)->position();
 
       sketch.mController->controllerForPath(mCurrentPath).addSymmetricNode(addIndex, position, position);
 
-      mSetPositionMode.setDragHandle(sketch.mModel->path(mCurrentPath)->entries()[addIndex].mNode);
+      mSetPositionMode.prepare(sketch.mModel->path(mCurrentPath)->entries()[addIndex].mNode, mousePosition);
       sketch.pushMode(&mSetPositionMode);
-
-      break;
     }
   }
 
@@ -712,16 +803,7 @@ void Sketch::onPaint(wxPaintEvent& event)
   drawSketch(context, mModel, &extents, nullptr);
 
   if (mShowDetails && mModeStack.empty()) {
-    drawTangents(context);
-
-    for (auto [id, node] : mModel->nodes()) {
-      drawHandle(context, handleStyle(node->type(), Model::Type::Node), node->position(), false, mSelection.contains(id));
-    }
-
-    for (auto [id, point] : mModel->controlPoints()) {
-      drawHandle(context, handleStyle(NodeType::Sharp, Model::Type::ControlPoint), point->position(), false,
-        mSelection.contains(id));
-    }
+    drawSketchDetails(context, mModel, Handle(), mSelection);
   }
 
   if (!extents.empty()) {
@@ -861,25 +943,6 @@ void Sketch::drawPath(cairo_t* context, const ID<Model::Path>& id, const Model::
   }
 }
 
-void Sketch::drawTangents(cairo_t* context)
-{
-  for (auto current : mModel->paths()) {
-    for (const Model::Path::Entry& entry : current.second->entries()) {
-      const Point& nodePosition = mModel->node(entry.mNode)->position();
-      const Point& preControl = mModel->controlPoint(entry.mPreControl)->position();
-      const Point& postControl = mModel->controlPoint(entry.mPostControl)->position();
-
-      cairo_move_to(context, preControl.x, preControl.y);
-      cairo_line_to(context, nodePosition.x, nodePosition.y);
-      cairo_line_to(context, postControl.x, postControl.y);
-    }
-  }
-
-  cairo_set_source_rgb(context, 0, 0, 0);
-  cairo_set_line_width(context, 0.5);
-  cairo_stroke(context);
-}
-
 cairo_t* createCollisionDetectionContext()
 {
   const cairo_format_t format = CAIRO_FORMAT_A8;
@@ -954,7 +1017,7 @@ Handle findElement(Model::Sketch* sketch, double x, double y)
     if (it->type() == Model::Type::Path) {
       Model::Path* path = sketch->path(it->id<Model::Path>());
 
-      if (pointInPath(context, sketch, path, x, y)) {
+      if (pointInPath(context, sketch, path, x - sketch->position().x, y - sketch->position().y)) {
         handle = *it;
         break;
       }
@@ -1237,7 +1300,7 @@ void Sketch::setModel(Model::Sketch* model)
   refreshHandles();
 }
 
-Handle Sketch::findHandle(double x, double y, Model::Type type,
+Handle findHandle(const Model::Sketch* sketch, double x, double y, Model::Type type,
   const Model::Node::ControlPointList& ignorePoints)
 {
   const float Radius = View::HandleSize / 2;
@@ -1247,20 +1310,47 @@ Handle Sketch::findHandle(double x, double y, Model::Type type,
       && position.y - Radius <= y && y < position.y + Radius;
   };
 
-  if (type == Model::Type::ControlPoint || type == Model::Type::Null) {
-    for (auto current : mModel->controlPoints()) {
-      bool ignore = std::find(ignorePoints.begin(), ignorePoints.end(), current.first) != ignorePoints.end();
+  auto checkNode = [sketch, type, withinRadius](const ID<Model::Node>& id) -> bool {
+    return (type == Model::Type::Node || type == Model::Type::Null)
+      && withinRadius(sketch->node(id)->position() + sketch->position());
+  };
 
-      if (!ignore && withinRadius(current.second->position())) {
-        return current.first;
-      }
+  auto checkControlPoint = [sketch, type, ignorePoints, withinRadius](const ID<Model::ControlPoint>& id) -> bool {
+    if (!(type == Model::Type::ControlPoint || type == Model::Type::Null)) {
+      return false;
     }
-  }
 
-  if (type == Model::Type::Node || type == Model::Type::Null) {
-    for (auto current : mModel->nodes()) {
-      if (withinRadius(current.second->position())) {
-        return current.first;
+    if (std::find(ignorePoints.begin(), ignorePoints.end(), id) != ignorePoints.end()) {
+      return false;
+    }
+
+    return withinRadius(sketch->controlPoint(id)->position() + sketch->position());
+  };
+
+  for (const Handle& handle : sketch->drawOrder()) {
+    if (handle.type() == Model::Type::Path) {
+      const Model::Path* path = sketch->path(handle.id<Model::Path>());
+
+      for (const Model::Path::Entry& entry : path->entries()) {
+        // In reverse draw order
+        if (checkControlPoint(entry.mPostControl)) {
+          return entry.mPostControl;
+        }
+
+        if (checkControlPoint(entry.mPreControl)) {
+          return entry.mPreControl;
+        }
+
+        if (checkNode(entry.mNode)) {
+          return entry.mNode;
+        }
+      }
+    } else if (handle.type() == Model::Type::Sketch) {
+      const Model::Sketch* subSketch = sketch->sketch(handle.id<Model::Sketch>());
+      Handle subHandle = findHandle(subSketch, x, y, type, ignorePoints);
+
+      if (subHandle.isValid()) {
+        return subHandle;
       }
     }
   }
@@ -1270,7 +1360,7 @@ Handle Sketch::findHandle(double x, double y, Model::Type type,
 
 Handle Sketch::findHandle(double x, double y)
 {
-  return findHandle(x, y, Model::Type::Null, {});
+  return View::findHandle(mModel, x, y, Model::Type::Null, {});
 }
 
 Point Sketch::handlePosition(const Handle& handle) const

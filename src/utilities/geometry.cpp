@@ -50,6 +50,11 @@ bool operator!=(const Vector& a, const Vector& b)
   return !(a == b);
 }
 
+Point Point::operator+(const Point& p) const
+{
+  return { x + p.x, y + p.y };
+}
+
 Point Point::operator+(const Vector& v) const
 {
   return { x + v.x, y + v.y };

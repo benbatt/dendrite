@@ -42,7 +42,6 @@ private:
   void drawSketch(cairo_t* context, const Model::Sketch* sketch, std::vector<Rectangle>* selectedExtents,
     Rectangle* extents) const;
   void drawPath(cairo_t* context, const ID<Model::Path>& id, const Model::Sketch* sketch, Rectangle* extents) const;
-  void drawTangents(cairo_t* context);
   void onPointerPressed(wxMouseEvent& event);
   void onSecondaryPointerPressed(wxMouseEvent& event);
   void onPointerMotion(wxMouseEvent& event);
@@ -58,7 +57,6 @@ private:
   void onCancel();
   void setModel(Model::Sketch* model);
 
-  Handle findHandle(double x, double y, Model::Type type, const Model::Node::ControlPointList& ignoreControlPoints);
   Handle findHandle(double x, double y);
 
   Point handlePosition(const Handle& handle) const;
